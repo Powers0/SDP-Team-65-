@@ -73,3 +73,5 @@ with torch.no_grad(): #disable gradient calculation to save memory
     print(f'Accuacy: {acc:.2f}')
 
 torch.save(model.state_dict(), 'starter_prediction.pt')
+
+df.to_csv('statcast_5days.csv', index=False)
