@@ -7,6 +7,8 @@ from pybaseball import statcast
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
+import numpy as np
+import torch.nn.functional as F
 
 # ==========================
 # 1. Load Data
@@ -97,3 +99,80 @@ with torch.no_grad():
     predicted_classes = torch.argmax(predictions, dim=1)
     accuracy = (predicted_classes == y_test_t).float().mean()
     print(f"Test Accuracy: {accuracy.item()*100:.2f}%")
+
+
+
+# --- Extended evaluation ---
+import numpy as np
+from sklearn.metrics import (
+    confusion_matrix, classification_report, f1_score,
+    roc_auc_score, average_precision_score
+)
+from sklearn.preprocessing import label_binarize
+from collections import Counter
+import matplotlib.pyplot as plt
+
+probs = F.softmax(predictions, dim=1).cpu().numpy() #converts the logits into probabilities across classes
+y_true = y_test_t.cpu().numpy() #converts tensor into a CPU NumPy array
+y_pred = np.argmax(probs, axis=1) #For each row, pick the index of the class with the highest probability
+class_names = list(y_le.classes_) #Back into human readable (FB, SL, CU)
+
+# Class distribution & majority baseline
+counts = Counter(y_true) #Build a frequency table 
+maj_class, maj_count = counts.most_common(1)[0]
+print("Class distribution (label: count):", counts) #Prints raw counts mapping to inspect class imbalance
+#prints 1. numeric index of the majority class , 2. human readable class name, 3. majority class baseline accuracy
+print(f"Majority class index: {maj_class} ({class_names[maj_class]}), baseline accuracy: {maj_count/len(y_true):.3f}") 
+
+# Confusion matrix
+cm = confusion_matrix(y_true, y_pred) #2d numpy array, rows=true, cols=pred
+print("Confusion matrix (rows=true, cols=pred):")
+print(cm)
+
+# Classification report (precision, recall, f1)
+print("Classification report:")
+print(classification_report(y_true, y_pred, target_names=class_names, digits=3))
+
+# Macro F1
+print("Macro F1:", f1_score(y_true, y_pred, average="macro")) #Unweighted mean of f1 scores for each class, treating all classes equally
+
+# Top-k accuracy (k=2 and k=3)
+def top_k_accuracy(probs, y_true, k=2):
+    topk = np.argsort(probs, axis=1)[:, -k:]
+    return np.mean([y_true[i] in topk[i] for i in range(len(y_true))])
+
+print("Top-2 accuracy:", top_k_accuracy(probs, y_true, k=2)) # __% of the time, the true pitch was in the top 2 of guesses
+print("Top-3 accuracy:", top_k_accuracy(probs, y_true, k=3)) #top 3 of guesses
+
+# ROC-AUC and PR-AUC (One-vs-Rest)
+#Fastball vs not fastball for example
+num_classes = probs.shape[1]
+y_bin = label_binarize(y_true, classes=np.arange(num_classes))  # shape (N, C)
+try:
+    per_class_auc = roc_auc_score(y_bin, probs, average=None)
+    print("Per-class ROC AUC:", per_class_auc)
+    print("Macro ROC AUC:", roc_auc_score(y_bin, probs, average="macro"))
+except Exception as e:
+    print("ROC AUC could not be computed:", e)
+
+# Per-class average precision (PR-AUC)
+per_class_ap = []
+for i in range(num_classes):
+    try:
+        ap = average_precision_score(y_bin[:, i], probs[:, i])
+    except Exception:
+        ap = float("nan")
+    per_class_ap.append(ap)
+print("Per-class Average Precision (PR-AUC):", per_class_ap)
+
+# Optional: plot confusion matrix heatmap (requires seaborn)
+try:
+    import seaborn as sns
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt="d", xticklabels=class_names, yticklabels=class_names, cmap="Blues")
+    plt.ylabel("True")
+    plt.xlabel("Predicted")
+    plt.title("Confusion Matrix")
+    plt.show()
+except Exception:
+    pass
