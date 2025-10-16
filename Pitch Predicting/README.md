@@ -1,6 +1,6 @@
 pitch_type_model.py
 
-
+ 
 Uses MLB Statcase data from Pybaseball to build a pitch type prediction model.
 Given contextual features like the count, pitcher's throwing hand, batter's stance, release speed, and spin rate - the model predicts the type of pitch (fastball, curveball, changeup, etc)
 
@@ -10,3 +10,6 @@ Part of larger object aiming to simulate entire at bats
 Data collected using Pybaseball Library:
 from pybaseball import statcast
 df = statcast(start_dt='2024-04-01', end_dt='2024-04-30')
+
+Dependencies
+pytorch, pybaseball, pandas, skikit-learn, numpy, seaborn
