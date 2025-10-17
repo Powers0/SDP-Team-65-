@@ -9,28 +9,46 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 import numpy as np
 import torch.nn.functional as F
+from sklearn.utils.class_weight import compute_class_weight
+import warnings
+
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 # ==========================
 # 1. Load Data
 # ==========================
 # Pull one month of Statcast data
-df = statcast(start_dt='2024-04-01', end_dt='2024-04-30')
+df = statcast(start_dt='2024-04-01', end_dt='2024-05-30')
 
 # Filter for relevant columns and drop missing values
-df = df.dropna(subset=['pitch_type', 'release_speed', 'release_spin_rate', 'p_throws', 'stand', 'balls', 'strikes', 'outs_when_up', 'inning'])
+df = df.dropna(subset=['pitch_type', 'p_throws', 'stand', 'balls', 'strikes', 'outs_when_up', 'inning', 'inning_topbot', 'bat_score', 'fld_score', 'batter', 'pitcher'])
 
-features = ['balls', 'strikes', 'outs_when_up', 'inning', 'p_throws', 'stand', 'release_speed', 'release_spin_rate']
+remove_pitches = ['CS', 'EP', 'FA', 'FO', 'KN', 'PO', 'SC']
+df = df[~df['pitch_type'].isin(remove_pitches)]
+
+features = ['balls', 'strikes', 'outs_when_up', 'inning', 'p_throws', 'stand', 'inning_topbot', 'on_1b', 'on_2b', 'on_3b', 'bat_score', 'fld_score']
 X = df[features]
-y = df['pitch_type']
+y = df['pitch_type'].values
+
+# Convert base runners from IDs → binary flags
+X.loc[:, 'on_1b'] = X['on_1b'].notna().astype(int)
+X.loc[:, 'on_2b'] = X['on_2b'].notna().astype(int)
+X.loc[:, 'on_3b'] = X['on_3b'].notna().astype(int)
 
 # It is necessary to LabelEncode p_throw, Stand, and pitch_Type to take these values from categorical to numerical
-for col in ['p_throws', 'stand']:
+for col in ['p_throws', 'stand','inning_topbot']:
     le = LabelEncoder()
-    X[col] = le.fit_transform(X[col])
+    X.loc[:, col] = le.fit_transform(X[col])
 
 # Encode pitch types (target)
 y_le = LabelEncoder()
 y_encoded = y_le.fit_transform(y)
+
+#Encode batter and pitcher IDs
+batter_le = LabelEncoder()
+pitcher_le = LabelEncoder()
+batter_ids = batter_le.fit_transform(df['batter'])
+pitcher_ids = pitcher_le.fit_transform(df['pitcher'])
 
 #Standardizes each feature by removing its mean and dividing by its standard deviation, 
 # making each continuous feature have a mean of around 0 and a standard deviation of 1
@@ -39,14 +57,27 @@ scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 
 # Train-test split
-X_train, X_test, y_train, y_test = train_test_split(X_scaled, y_encoded, test_size=0.2, random_state=42)
+X_train, X_test, y_train, y_test, batter_train, batter_test, pitcher_train, pitcher_test = train_test_split(
+    X_scaled, y_encoded, batter_ids, pitcher_ids, test_size=0.2, random_state=42
+)
 
+#Compute weights
+class_weights = compute_class_weight(
+    class_weight='balanced',
+    classes=np.unique(y_train),
+    y=y_train
+)
+print(dict(zip(y_le.classes_, class_weights.tolist())))
 # Convert to PyTorch tensors
 X_train_t = torch.tensor(X_train, dtype=torch.float32)
 X_test_t = torch.tensor(X_test, dtype=torch.float32)
-y_train_t = torch.tensor(y_train, dtype=torch.long)  # long for classification
+y_train_t = torch.tensor(y_train, dtype=torch.long)
 y_test_t = torch.tensor(y_test, dtype=torch.long)
-
+batter_train_t = torch.tensor(batter_train, dtype=torch.long)
+batter_test_t = torch.tensor(batter_test, dtype=torch.long)
+pitcher_train_t = torch.tensor(pitcher_train, dtype=torch.long)
+pitcher_test_t = torch.tensor(pitcher_test, dtype=torch.long)
+class_weights = torch.tensor(class_weights, dtype=torch.float32)
 # ==========================
 # 2. Define Model
 # ==========================
@@ -55,37 +86,46 @@ y_test_t = torch.tensor(y_test, dtype=torch.long)
 #nnLinear(input_dim, 64) maps input vector -> vector length 64
 #Then, Linear 64 -> 32, Then 32 -> num_classes outputs
 class PitchTypeModel(nn.Module):
-    def __init__(self, input_dim, num_classes):
+    def __init__(self, input_dim, num_classes, num_batters, num_pitchers, embed_dim=8):
         super(PitchTypeModel, self).__init__()
+        self.batter_embed = nn.Embedding(num_batters, embed_dim)
+        self.pitcher_embed = nn.Embedding(num_pitchers, embed_dim)
         self.net = nn.Sequential(
-            nn.Linear(input_dim, 64),
+            nn.Linear(input_dim + 2*embed_dim, 64),
             nn.ReLU(),
             nn.Linear(64, 32),
             nn.ReLU(),
             nn.Linear(32, num_classes)
         )
     
-    def forward(self, x):
+    def forward(self, x, batter_ids, pitcher_ids):
+        b_embed = self.batter_embed(batter_ids)
+        p_embed = self.pitcher_embed(pitcher_ids)
+        x = torch.cat([x, b_embed, p_embed], dim=1)
         return self.net(x)
 
-model = PitchTypeModel(X_train_t.shape[1], len(y_le.classes_))
+model = PitchTypeModel(
+    input_dim=X_train_t.shape[1],
+    num_classes=len(y_le.classes_),
+    num_batters=len(batter_le.classes_),
+    num_pitchers=len(pitcher_le.classes_)
+)
 
 # ==========================
 # 3. Training
 # ==========================
 #Best for multi-class classification where targets are class indices
-criterion = nn.CrossEntropyLoss()  
+criterion = nn.CrossEntropyLoss(weight=class_weights)  
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 epochs = 50
 
 for epoch in range(epochs):
     model.train()
-    optimizer.zero_grad() #pytorch accumulates gradients by default, so we must zero them each training iteration
-    outputs = model(X_train_t)
+    optimizer.zero_grad()
+    outputs = model(X_train_t, batter_train_t, pitcher_train_t)
     loss = criterion(outputs, y_train_t)
     loss.backward()
     optimizer.step()
-    
     if (epoch+1) % 10 == 0:
         print(f"Epoch {epoch+1}/{epochs}, Loss: {loss.item():.4f}")
 
@@ -95,7 +135,7 @@ for epoch in range(epochs):
 #Going to implement a different form of accuracy 
 model.eval()
 with torch.no_grad():
-    predictions = model(X_test_t)
+    predictions = model(X_test_t, batter_test_t, pitcher_test_t)
     predicted_classes = torch.argmax(predictions, dim=1)
     accuracy = (predicted_classes == y_test_t).float().mean()
     print(f"Test Accuracy: {accuracy.item()*100:.2f}%")
@@ -103,7 +143,6 @@ with torch.no_grad():
 
 
 # --- Extended evaluation ---
-import numpy as np
 from sklearn.metrics import (
     confusion_matrix, classification_report, f1_score,
     roc_auc_score, average_precision_score
@@ -130,8 +169,9 @@ print("Confusion matrix (rows=true, cols=pred):")
 print(cm)
 
 # Classification report (precision, recall, f1)
-print("Classification report:")
-print(classification_report(y_true, y_pred, target_names=class_names, digits=3))
+unique_labels = np.unique(y_true)
+target_names = [class_names[i] for i in unique_labels]
+print(classification_report(y_true, y_pred, labels=unique_labels, target_names=target_names))
 
 # Macro F1
 print("Macro F1:", f1_score(y_true, y_pred, average="macro")) #Unweighted mean of f1 scores for each class, treating all classes equally
