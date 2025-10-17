@@ -11,6 +11,8 @@ import numpy as np
 import torch.nn.functional as F
 from sklearn.utils.class_weight import compute_class_weight
 import warnings
+from imblearn.over_sampling import RandomOverSampler
+from imblearn.under_sampling import RandomUnderSampler
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -61,6 +63,7 @@ X_train, X_test, y_train, y_test, batter_train, batter_test, pitcher_train, pitc
     X_scaled, y_encoded, batter_ids, pitcher_ids, test_size=0.2, random_state=42
 )
 
+
 #Compute weights
 class_weights = compute_class_weight(
     class_weight='balanced',
@@ -68,6 +71,7 @@ class_weights = compute_class_weight(
     y=y_train
 )
 print(dict(zip(y_le.classes_, class_weights.tolist())))
+
 # Convert to PyTorch tensors
 X_train_t = torch.tensor(X_train, dtype=torch.float32)
 X_test_t = torch.tensor(X_test, dtype=torch.float32)
