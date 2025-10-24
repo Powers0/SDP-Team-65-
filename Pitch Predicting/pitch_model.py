@@ -16,6 +16,12 @@ from imblearn.under_sampling import RandomUnderSampler
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+#try training where anything non numeic is removed 
+
+#Replacing training labels with fastballs
+
+#Oversample fastball
+
 # ==========================
 # 1. Load Data
 # ==========================
@@ -23,6 +29,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 df = statcast(start_dt='2024-04-01', end_dt='2024-05-30')
 
 # Filter for relevant columns and drop missing values
+#p_throws, #stand, #batter, #pitcher
 df = df.dropna(subset=['pitch_type', 'p_throws', 'stand', 'balls', 'strikes', 'outs_when_up', 'inning', 'inning_topbot', 'bat_score', 'fld_score', 'batter', 'pitcher'])
 
 remove_pitches = ['CS', 'EP', 'FA', 'FO', 'KN', 'PO', 'SC']
@@ -89,6 +96,9 @@ class_weights = torch.tensor(class_weights, dtype=torch.float32)
 #ReLu introduces non-linearity
 #nnLinear(input_dim, 64) maps input vector -> vector length 64
 #Then, Linear 64 -> 32, Then 32 -> num_classes outputs
+
+
+#memorize different batter/pitcher id's
 class PitchTypeModel(nn.Module):
     def __init__(self, input_dim, num_classes, num_batters, num_pitchers, embed_dim=8):
         super(PitchTypeModel, self).__init__()
