@@ -86,7 +86,7 @@ print("Training RandomForestClassifier...")
 model = RandomForestClassifier(
     n_estimators=200,
     random_state=42,
-    n_jobs=-1
+    n_jobs=-1,
 )
 model.fit(X_train, y_train)
 print("Training complete.")
