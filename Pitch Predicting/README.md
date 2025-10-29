@@ -55,8 +55,8 @@ Current Example Output:
 
 
 Analysis on Current Example Output:
-    Currently, fastballs are predicted most accurately, while Curveballs are
-    least accurate
+    Currently, fastballs are predicted most accurately, while Curveballs are least accurate
+    
 
 
 Feature Importance Plot Rankings from most important to least:
@@ -68,4 +68,6 @@ Feature Importance Plot Rankings from most important to least:
     fld_score
     outs_when_up
     strikes
-    on_1b, on_2b, on_3b (none)
+    on_1b, on_2b, on_3b 
+
+
