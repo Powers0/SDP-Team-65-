@@ -13,89 +13,92 @@ import warnings
 cache.enable()
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-#Load statcast data
+# Load statcast data
 print("Loading Statcast data...")
 df = statcast(start_dt='2024-04-01', end_dt='2024-05-30')
 
-#Keeping only relavant columns and drop empty rows
+# Keep only relevant columns and drop empty rows
 features = [
     'balls', 'strikes', 'outs_when_up', 'inning',
     'on_1b', 'on_2b', 'on_3b',
     'bat_score', 'fld_score'
 ]
 target = 'pitch_type'
-df = df.dropna(subset=features + [target])
+df = df.dropna(subset=features + [target, 'stand', 'p_throws'])
 
-#Converting base runners to binary
+# Convert base runners to binary
 for base in ['on_1b', 'on_2b', 'on_3b']:
     df[base] = df[base].notna().astype(int)
 
-#Adding score difference
+# Add score difference
 df['score_diff'] = df['bat_score'] - df['fld_score']
+features.append('score_diff')
 
-#Keep only common pitch types
-common_pitches = ['FF', 'SL', 'SI', 'CH', 'CU', 'FC']
+# Keep only common pitch types
+common_pitches = ['FF', 'SL', 'SI', 'CH', 'CU', 'FC', 'ST', 'FS']
 df = df[df['pitch_type'].isin(common_pitches)]
 
+# One-hot encode batter and pitcher handedness
+df = pd.get_dummies(df, columns=['stand', 'p_throws'], drop_first=False)
+features += [col for col in df.columns if col.startswith('stand_') or col.startswith('p_throws_')]
 
-#Sort by pitcher, game, and pitch sequence
+# Sort by pitcher, game, and pitch sequence
 df = df.sort_values(by=['pitcher', 'game_date', 'at_bat_number', 'pitch_number'])
 
-# Encode pitch_type for previous pitch
+# Encode pitch_type
 le_pitch = LabelEncoder()
 df['pitch_encoded'] = le_pitch.fit_transform(df['pitch_type'])
 
-#Shift by 1 within each bat
-df['prev_pitch'] = df.groupby(['game_pk', 'at_bat_number'])['pitch_encoded'].shift(1)
+# Previous 1 through 3 pitches
+df['prev_pitch_1'] = df.groupby(['game_pk', 'at_bat_number'])['pitch_encoded'].shift(1)
+df['prev_pitch_2'] = df.groupby(['game_pk', 'at_bat_number'])['pitch_encoded'].shift(2)
+df['prev_pitch_3'] = df.groupby(['game_pk', 'at_bat_number'])['pitch_encoded'].shift(3)
 
-#No previous pitch for the first pitch of each at bat
-df = df.dropna(subset=['prev_pitch'])
-df['prev_pitch'] = df['prev_pitch'].astype(int)
+# Drop rows without enough previous pitches
+df = df.dropna(subset=['prev_pitch_1', 'prev_pitch_2', 'prev_pitch_3'])
 
-#Features and targets
-features = [
-    'balls', 'strikes', 'outs_when_up', 'inning',
-    'on_1b', 'on_2b', 'on_3b',
-    'bat_score', 'fld_score', 'score_diff',
-    'prev_pitch'
-]
-target = 'pitch_type'
+# Convert previous pitches to int
+df[['prev_pitch_1','prev_pitch_2','prev_pitch_3']] = df[['prev_pitch_1','prev_pitch_2','prev_pitch_3']].astype(int)
 
+# Add previous pitches to features
+features += ['prev_pitch_1', 'prev_pitch_2', 'prev_pitch_3']
+
+# Prepare data
 X = df[features].values
 y_raw = df[target].values
 
-#Encode target labels (e.g., FF → 0)
+# Encode target labels
 le_target = LabelEncoder()
 y = le_target.fit_transform(y_raw)
 
-#Standardize numeric features
+# Standardize numeric features
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 
-#Train/Test split
+# Train/Test split
 X_train, X_test, y_train, y_test = train_test_split(
     X_scaled, y, test_size=0.2, random_state=42, stratify=y
 )
 
-#Random Forest Model
+# Random Forest Model
 print("Training RandomForestClassifier...")
 model = RandomForestClassifier(
     n_estimators=200,
     random_state=42,
-    n_jobs=-1
+    n_jobs=-1,
 )
 model.fit(X_train, y_train)
 print("Training complete.")
 
-#Evaluate the model
+# Evaluate the model
 y_pred = model.predict(X_test)
 accuracy = accuracy_score(y_test, y_pred)
 print(f"\nTest Accuracy: {accuracy*100:.2f}%")
 
 print("\nClassification Report:")
-print(classification_report(y_test, y_pred, target_names=le_target.classes_))
+print(classification_report(y_test, y_pred, target_names=le_target.classes_, zero_division=0))
 
-#Confusion matrix
+# Confusion matrix
 cm = confusion_matrix(y_test, y_pred)
 plt.figure(figsize=(8, 6))
 sns.heatmap(cm, annot=True, fmt="d",
@@ -104,15 +107,15 @@ sns.heatmap(cm, annot=True, fmt="d",
             cmap="Blues")
 plt.ylabel("True Label")
 plt.xlabel("Predicted Label")
-plt.title("Confusion Matrix — Pitch Type Prediction (with Previous Pitch)")
+plt.title("Confusion Matrix — Pitch Type Prediction")
 plt.tight_layout()
 plt.show()
 
-#Feature importance
+# Feature importance
 importances = model.feature_importances_
 indices = np.argsort(importances)[::-1]
 
-plt.figure(figsize=(8, 5))
+plt.figure(figsize=(10, 5))
 plt.title("Feature Importance (Random Forest)")
 plt.bar(range(len(features)), importances[indices], align="center")
 plt.xticks(range(len(features)), np.array(features)[indices], rotation=45)
