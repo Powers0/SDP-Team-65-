@@ -18,7 +18,7 @@ cache.enable()
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 print("Loading Statcast data...")
-df = statcast(start_dt='2024-04-01', end_dt='2024-05-30')
+df = statcast(start_dt='2024-04-01', end_dt='2024-09-30')
 
 # -----------------------------------
 # Preprocessing
