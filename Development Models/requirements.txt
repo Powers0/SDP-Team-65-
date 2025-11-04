@@ -3,5 +3,5 @@ pandas>=1.5
 scikit-learn>=1.2
 matplotlib>=3.7
 seaborn>=0.12
-pybaseball>=2.4.0
+pybaseball>=2.2.7
 tensorflow>=2.13
