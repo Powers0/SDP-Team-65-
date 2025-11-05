@@ -83,8 +83,9 @@ Possible Improvements:
     Use time-based validation: Train on older seasons and evaluate on the newest season to better estimate generalization
     Class balancing / focal loss / class weights: Mitigate imbalance.
     Set seeds for numpy and tensorflow for reproducibility (np.random.seed(42) and tf.random.set_seed(42)) and ensure deterministic GPU config if needed
-
-
+    Add previous pitch velocity feature
+    Add pitch count as a feature
+    Current AB vs Entire Game History vs Game History Between Pitcher and Batter
 
 
 
