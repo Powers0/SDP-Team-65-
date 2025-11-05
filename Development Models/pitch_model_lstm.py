@@ -30,8 +30,21 @@ except FileNotFoundError:
     df_2023 = statcast(start_dt='2023-04-01', end_dt='2023-09-30')
     df_2023.to_csv("statcast_2023.csv", index=False)
 
-# Concatenate the two seasons
-df = pd.concat([df_2023, df_2024], ignore_index=True)
+try:
+    df_2022 = pd.read_csv("statcast_2022.csv")
+except FileNotFoundError:
+    df_2022 = statcast(start_dt='2022-04-01', end_dt='2022-09-30')
+    df_2022.to_csv("statcast_2022.csv", index=False)
+
+try:
+    df_2021 = pd.read_csv("statcast_2021.csv")
+except FileNotFoundError:
+    df_2021 = statcast(start_dt='2021-04-01', end_dt='2021-09-30')
+    df_2021.to_csv("statcast_2021.csv", index=False)
+
+
+# Concatenate the three seasons
+df = pd.concat([df_2022, df_2023, df_2024], ignore_index=True)
 print(f"Combined data shape: {df.shape}")
 
 # -----------------------------------
@@ -55,7 +68,7 @@ df['score_diff'] = df['bat_score'] - df['fld_score']
 features.append('score_diff')
 
 # Limit to common pitch types
-common_pitches = ['FF', 'SL', 'SI', 'CH', 'CU', 'FC', 'ST', 'FS']
+common_pitches = ['FF', 'SL', 'SI', 'CH', 'CU', 'FC', 'ST']
 df = df[df['pitch_type'].isin(common_pitches)]
 
 # One-hot encode handedness
