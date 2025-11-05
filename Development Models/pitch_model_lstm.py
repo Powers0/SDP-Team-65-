@@ -18,7 +18,14 @@ cache.enable()
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 print("Loading Statcast data...")
-df = statcast(start_dt='2024-04-01', end_dt='2024-09-30')
+try:
+    df = pd.read_csv("statcast_2024.csv")
+    print("✅ Loaded cached data.")
+except FileNotFoundError:
+    df = statcast(start_dt='2024-04-01', end_dt='2024-09-30')
+    df.to_csv("statcast_2024.csv", index=False)
+    print("💾 Saved data to statcast_2024.csv.")
+print(f"Data shape: {df.shape}")
 
 # -----------------------------------
 # Preprocessing
@@ -30,7 +37,7 @@ features = [
 ]
 target = 'pitch_type'
 
-df = df.dropna(subset=features + [target, 'stand', 'p_throws'])
+df = df.dropna(subset=features + [target, 'stand', 'p_throws', 'zone'])
 
 # Convert base runners to binary
 for base in ['on_1b', 'on_2b', 'on_3b']:
@@ -56,14 +63,33 @@ le_pitch = LabelEncoder()
 df['pitch_encoded'] = le_pitch.fit_transform(df['pitch_type'])
 
 # -----------------------------------
+# Add previous pitch and previous zone
+# -----------------------------------
+df['previous_pitch'] = df.groupby(['pitcher', 'game_pk', 'at_bat_number'])['pitch_type'].shift(1)
+df['previous_zone'] = df.groupby(['pitcher', 'game_pk', 'at_bat_number'])['zone'].shift(1)
+
+# Fill first pitch in each at-bat
+df['previous_pitch'] = df['previous_pitch'].fillna('None')
+df['previous_zone'] = df['previous_zone'].fillna(-1)
+
+# One-hot encode previous pitch
+df = pd.get_dummies(df, columns=['previous_pitch'], drop_first=False)
+features += [col for col in df.columns if col.startswith('previous_pitch_')]
+
+# Include previous_zone as numeric feature
+features.append('previous_zone')
+
+# Standardize numeric features
+scaler = StandardScaler()
+numeric_features = [f for f in features if f != 'previous_zone'] + ['previous_zone']
+df[numeric_features] = scaler.fit_transform(df[numeric_features])
+
+# -----------------------------------
 # Create sequential data for LSTM
 # -----------------------------------
-sequence_length = 5  # how many previous pitches to use
+sequence_length = 3  # how many previous pitches to use
 X_sequences = []
 y_sequences = []
-
-scaler = StandardScaler()
-df[features] = scaler.fit_transform(df[features])
 
 # Group by pitcher & at-bat to form sequences
 for _, group in df.groupby(['pitcher', 'game_pk', 'at_bat_number']):
@@ -75,8 +101,8 @@ for _, group in df.groupby(['pitcher', 'game_pk', 'at_bat_number']):
         X_sequences.append(pitches[i-sequence_length:i])
         y_sequences.append(labels[i])
 
-X_sequences = np.array(X_sequences)
-y_sequences = np.array(y_sequences)
+X_sequences = np.array(X_sequences, dtype=np.float32)
+y_sequences = np.array(y_sequences, dtype=np.int32)
 
 # One-hot encode the target
 y_cat = to_categorical(y_sequences, num_classes=len(le_pitch.classes_))
