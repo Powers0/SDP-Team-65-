@@ -85,7 +85,7 @@ Possible Improvements:
     Set seeds for numpy and tensorflow for reproducibility (np.random.seed(42) and tf.random.set_seed(42)) and ensure deterministic GPU config if needed
     Add previous pitch velocity feature
     Add pitch count as a feature
-    Current AB vs Entire Game History vs Game History Between Pitcher and Batter
+    Current AB vs Entire Game History vs Game History Between Pitcher and Batter, try modeling just one pitcher and batter 
 
 
 
