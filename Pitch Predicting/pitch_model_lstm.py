@@ -171,12 +171,12 @@ model.summary()
 # -----------------------------------
 # Train
 # -----------------------------------
-early_stop = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
+early_stop = EarlyStopping(monitor='val_loss', patience=2, restore_best_weights=True)
 history = model.fit(
     [X_train, pitcher_train, batter_train],
     y_train,
     validation_split=0.2,
-    epochs=15,
+    epochs=10,
     batch_size=64,
     callbacks=[early_stop],
     verbose=1
