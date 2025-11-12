@@ -89,3 +89,14 @@ Possible Improvements:
 
 
 
+Encoding for Pitchers and Batters:
+    df['pitcher_id'] = df['pitcher'].astype('category').cat.codes
+    df['batter_id'] = df['batter'].astype('category').cat.codes
+    num_pitchers = df['pitcher_id'].nunique()
+    num_batters = df['batter_id'].nunique() 
+    Turns each unique pitcher and abtter into an integer ID
+
+    pitcher_emb = Embedding(input_dim=num_pitchers, output_dim=embedding_dim)(input_pitcher)
+    batter_emb = Embedding(input_dim=num_batters, output_dim=embedding_dim)(input_batter)
+    Embedding creates a dense vector of 8 numbers where the model learns the best 8-number representation for each player
+    These numbers start random, but during training, they're updated so that similar pitchers (and batters) get similar embeddings
