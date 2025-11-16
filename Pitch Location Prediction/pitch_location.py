@@ -15,7 +15,7 @@ import tensorflow as tf
 from tensorflow.keras import models, layers
 
 
-SEQ_LEN = 8         # number of previous pitches used to predict next pitch
+SEQ_LEN = 5        # number of previous pitches used to predict next pitch
 TEST_SIZE = 0.15
 RANDOM_SEED = 42
 
