@@ -189,10 +189,19 @@ print("\nEvaluating model...")
 loss, acc = model.evaluate([X_test, pitcher_test, batter_test], y_test, verbose=0)
 print(f"Test Accuracy: {acc*100:.2f}%")
 
-# Predictions
-y_pred_probs = model.predict([X_test, pitcher_test, batter_test])
-y_pred = np.argmax(y_pred_probs, axis=1)
-y_true = np.argmax(y_test, axis=1)
+# -----------------------------------
+# Save predicted pitch type probabilities
+# -----------------------------------
+print("\nSaving pitch type probabilities for use in pitch location model...")
+y_pred_probs_full = model.predict([X_sequences, pitcher_seq, batter_seq], batch_size=256, verbose=1)
+np.save("pitch_type_probs.npy", y_pred_probs_full)
+print(f"Saved pitch type probabilities shape: {y_pred_probs_full.shape}")
+
+# -----------------------------------
+# Predictions & Evaluation
+# -----------------------------------
+y_pred = np.argmax(y_pred_probs_full[split:], axis=1)
+y_true = np.argmax(y_cat[split:], axis=1)
 
 print("\nClassification Report:")
 print(classification_report(y_true, y_pred, target_names=le_pitch.classes_, zero_division=0))
@@ -210,9 +219,7 @@ plt.title("Confusion Matrix — LSTM Pitch Type Prediction")
 plt.tight_layout()
 plt.show()
 
-# -----------------------------------
-# Plot Training History
-# -----------------------------------
+# Training history
 plt.figure(figsize=(8,4))
 plt.plot(history.history['accuracy'], label='Train Accuracy')
 plt.plot(history.history['val_accuracy'], label='Val Accuracy')
