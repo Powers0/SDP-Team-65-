@@ -228,4 +228,4 @@ plt.legend()
 plt.title("LSTM Training vs Validation Accuracy")
 plt.show()
 
-dump(model, "pitch_model.joblib")
+model.save("pitch_model.keras")
