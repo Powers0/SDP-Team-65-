@@ -1,35 +1,93 @@
 <!DOCTYPE html>
 <html>
-<head>
+  <head>
     <title>Pitch Predictor</title>
-</head>
-<body>
-    <h1>Pitch Prediction</h1>
+
+    <!-- jQuery (required for Select2) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <!-- Select2 CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Select2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 30px;
+      }
+      h1 {
+        margin-bottom: 20px;
+      }
+      .select2-container {
+        width: 300px !important;
+      }
+      button {
+        margin-top: 20px;
+        padding: 10px 20px;
+        font-size: 16px;
+      }
+      .error {
+        color: red;
+        margin-top: 15px;
+      }
+      .prediction {
+        font-size: 20px;
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Pitch Type Prediction</h1>
 
     <form method="POST">
-        <label>Hitter:</label>
-        <!--<select name="hitter">
-            {% for h in hitters %}
-                <option value="{{h}}">{{h}}</option>
-            {% endfor %}
-        </select>-->
+      <label><b>Hitter:</b></label
+      ><br />
+      <select name="hitter" id="hitter-select">
+        {% for h in hitters %}
+        <option value="{{h}}">{{h}}</option>
+        {% endfor %}
+      </select>
 
-        <br><br>
+      <br /><br />
 
-        <label>Pitcher:</label>
-        <!--<select name="pitcher">
-            {% for p in pitchers %}
-                <option value="{{p}}">{{p}}</option>
-            {% endfor %}
-        </select>-->
+      <label><b>Pitcher:</b></label
+      ><br />
+      <select name="pitcher" id="pitcher-select">
+        {% for p in pitchers %}
+        <option value="{{p}}">{{p}}</option>
+        {% endfor %}
+      </select>
 
-        <br><br>
+      <br /><br />
 
-        <button type="submit">Predict</button>
+      <button type="submit">Predict</button>
     </form>
 
-    <!--{% if prediction %}
-        <h2>Prediction: {{ prediction }}</h2>
-    {% endif %}-->
-</body>
+    {% if prediction %}
+    <p class="prediction">Predicted Next Pitch Type: <b>{{ prediction }}</b></p>
+    {% endif %} {% if error %}
+    <p class="error">Error: {{ error }}</p>
+    {% endif %}
+
+    <script>
+      // Activate Select2 on both dropdowns
+      $(document).ready(function () {
+        $("#hitter-select").select2({
+          placeholder: "Select a hitter",
+          allowClear: true,
+        });
+
+        $("#pitcher-select").select2({
+          placeholder: "Select a pitcher",
+          allowClear: true,
+        });
+      });
+    </script>
+  </body>
 </html>
