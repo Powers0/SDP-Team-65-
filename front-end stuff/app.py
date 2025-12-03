@@ -57,7 +57,7 @@ df["pitcher_name"] = df["pitcher"].map(pitcher_id_to_name).fillna("unknown")
 print("Name mapping complete.")
 
 # -------------------------------------------------
-# Preprocessing (Safe — no more deleting matchups)
+# Preprocessing 
 # -------------------------------------------------
 
 features = [
