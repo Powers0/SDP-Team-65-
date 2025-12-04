@@ -87,3 +87,38 @@ Model Architecture pitchlocation_architecture.py
     Dense(2) → (plate_x, plate_z)
 
 Training Script train_pitchlocation_model.py
+    Handles:
+	•	Loading artifacts
+	•	Printing dataset shapes
+	•	Building model
+	•	Training with EarlyStopping
+	•	Saving metrics + plots
+	•	Saving final .keras model
+
+    Loss & Metrics
+        •	Loss: MSE
+        •	Metrics: MAE, plus unscaled MAE/RMSE after inverse-transform
+
+    Training Strategy
+        •	EarlyStopping with patience 3
+        •	Validation split 20%
+        •	Batch size 256
+        •	Adam optimizer
+        
+    Evaluation Metrics
+        ========== FULL METRICS ==========
+        Test MSE: 0.8346
+        Test MAE: 0.7270
+        Test RMSE: 0.9136
+        MAE plate_x: 0.697
+        MAE plate_z: 0.757
+        RMSE plate_x: 0.875
+        RMSE plate_z: 0.951
+
+        Given that:
+	•	Home plate width = 17 inches
+	•	The strike zone height is ~3 ft
+	•	Horizontal MAE < 1 ft
+	•	Vertical MAE < 1 ft
+
+    This performance is strong for noisy Statcast location data.
