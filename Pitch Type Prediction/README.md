@@ -60,3 +60,33 @@ Inputs
 
     At each timestep:
         [features | pitcher_emb | batter_emb]
+    Masking(mask_value=0.0)
+    LSTM(128)
+    Dropout(0.3)
+    Dense(64, relu)
+    Dense(n_classes, softmax)
+
+    Training
+	•	Loss: categorical crossentropy
+	•	Optimizer: Adam
+	•	EarlyStopping: monitors val_loss
+
+    Why these choices?
+    Embedding(8)
+    Large enough to encode tendencies, small enough to prevent overfitting
+    LSTM(128)
+    Balanced capacity for pitch sequencing patterns
+    Dropout(0.3)
+    Prevents overfitting in sequential model
+    Dense(64)
+    Intermediate abstraction for final classification
+    Softmax
+    Multi-class pitch prediction requires probability distribution
+
+📊 Final Model Performance
+
+Typical evaluation:
+	•	Accuracy ~52–53% on real-world 7-class pitch set
+	•	Good performance on FF, SI, FC
+	•	Lower performance on CU, ST (class imbalance)
+
