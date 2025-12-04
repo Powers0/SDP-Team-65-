@@ -1,198 +1,238 @@
 from flask import Flask, render_template, request
 import numpy as np
 import pandas as pd
-import warnings
-from pybaseball import cache, playerid_reverse_lookup
-from sklearn.preprocessing import StandardScaler, LabelEncoder
 from tensorflow.keras.models import load_model
+import pickle
+from pybaseball import playerid_reverse_lookup
+from sklearn.preprocessing import LabelEncoder  # only if you want to reuse locally
 
-# -------------------------------------------------
-# Flask + Model
-# -------------------------------------------------
+# ----------------------------------------------------
+# Config
+# ----------------------------------------------------
+SEQ_LEN = 5
+PT_DIR = "../Pitch Type Prediction/artifacts/"
+LOC_DIR = "../Pitch Location Prediction/artifacts/"
+CSV_DIR = "../csv data/"
+
 app = Flask(__name__)
-model = load_model("pitch_model.keras")
 
-sequence_length = 5
-cache.enable()
-warnings.filterwarnings("ignore", category=FutureWarning)
+# ----------------------------------------------------
+# Load Models
+# ----------------------------------------------------
+pitchtype_model = load_model(PT_DIR + "pitchtype_model.keras")
+location_model  = load_model(LOC_DIR + "pitch_location_model.keras")
 
-print("\n=== Loading FULL Statcast data ===")
+# ----------------------------------------------------
+# Load Artifacts
+# ----------------------------------------------------
+pt_features  = pickle.load(open(PT_DIR + "features.pkl", "rb"))
+pt_scaler_X  = pickle.load(open(PT_DIR + "scaler.pkl", "rb"))
+pt_label_enc = pickle.load(open(PT_DIR + "label_encoder.pkl", "rb"))
 
-# -------------------------------------------------
-# Load statcast_full_YYYY.csv files
-# -------------------------------------------------
+loc_features = pickle.load(open(LOC_DIR + "features.pkl", "rb"))
+loc_scaler_X = pickle.load(open(LOC_DIR + "scaler_X.pkl", "rb"))
+loc_scaler_Y = pickle.load(open(LOC_DIR + "scaler_Y.pkl", "rb"))
+
+# ----------------------------------------------------
+# Load Statcast Data
+# ----------------------------------------------------
 dfs = []
 for year in [2021, 2022, 2023, 2024]:
-    fname = f"statcast_full_{year}.csv"
-    print("Loading:", fname)
-    dfs.append(pd.read_csv(fname))
+    dfs.append(pd.read_csv(f"{CSV_DIR}/statcast_full_{year}.csv"))
 
 df = pd.concat(dfs, ignore_index=True)
-print("Combined shape:", df.shape)
 
-# -------------------------------------------------
-# Add player names (batter_name / pitcher_name)
-# -------------------------------------------------
-print("Looking up player names...")
-
+# ----------------------------------------------------
+# Build Names (like old app)
+# ----------------------------------------------------
 batter_ids = df["batter"].dropna().unique().astype(int)
 pitcher_ids = df["pitcher"].dropna().unique().astype(int)
 
 batter_lookup = playerid_reverse_lookup(batter_ids, key_type="mlbam")
 pitcher_lookup = playerid_reverse_lookup(pitcher_ids, key_type="mlbam")
 
-batter_id_to_name = {
-    row["key_mlbam"]: f"{row['name_first']} {row['name_last']}".lower()
+batter_map = {
+    row["key_mlbam"]: f"{row['name_first']} {row['name_last']}"
     for _, row in batter_lookup.iterrows()
 }
-
-pitcher_id_to_name = {
-    row["key_mlbam"]: f"{row['name_first']} {row['name_last']}".lower()
+pitcher_map = {
+    row["key_mlbam"]: f"{row['name_first']} {row['name_last']}"
     for _, row in pitcher_lookup.iterrows()
 }
 
-df["batter_name"] = df["batter"].map(batter_id_to_name).fillna("unknown")
-df["pitcher_name"] = df["pitcher"].map(pitcher_id_to_name).fillna("unknown")
+df["batter_name"] = df["batter"].map(batter_map).fillna("Unknown")
+df["pitcher_name"] = df["pitcher"].map(pitcher_map).fillna("Unknown")
 
-print("Name mapping complete.")
+# ----------------------------------------------------
+# Embedding IDs (must match training)
+# ----------------------------------------------------
+df["pitcher_embed"] = df["pitcher"].astype("category").cat.codes
+df["batter_embed"]  = df["batter"].astype("category").cat.codes
 
-# -------------------------------------------------
-# Preprocessing 
-# -------------------------------------------------
+# ----------------------------------------------------
+# Pitch-type style feature engineering (NO SCALING)
+# This recreates the columns that pt_features refers to.
+# ----------------------------------------------------
+# Start from a copy so we don't accidentally break something if needed later
+df = df.sort_values(["pitcher", "game_date", "game_pk", "at_bat_number", "pitch_number"])
 
-features = [
+# Base numeric features
+base_features = [
     "balls", "strikes", "outs_when_up", "inning",
     "on_1b", "on_2b", "on_3b",
     "bat_score", "fld_score"
 ]
 
-target = "pitch_type"
+target_col = "pitch_type"
 
-# Base runners: already safe
+# Base runners 0/1
 for base in ["on_1b", "on_2b", "on_3b"]:
     df[base] = df[base].notna().astype(int)
 
-# Handedness
-df["stand"] = df["stand"].fillna("R")
+# Fill handedness
+df["stand"]    = df["stand"].fillna("R")
 df["p_throws"] = df["p_throws"].fillna("R")
 
 # Score diff
 df["score_diff"] = df["bat_score"] - df["fld_score"]
-features.append("score_diff")
+base_features.append("score_diff")
 
-# Pitch type MUST exist
-df = df.dropna(subset=[target])
+# We don't drop rows by pitch_type / allowed set here,
+# because we just need the *input features* for last SEQ_LEN pitches.
+# The pitch_type model itself was trained on the filtered subset, but it
+# can still consume the same feature structure.
 
-# Allowed pitch types
-common_pitches = ["FF", "SL", "SI", "CH", "CU", "FC", "ST"]
-df = df[df["pitch_type"].isin(common_pitches)]
-
-# Fix zone missing
+# Fix zone missing (for previous_zone / consistency)
 df["zone"] = df["zone"].fillna(-1)
 
-# Fill numeric NaNs with medians
-for col in features:
+# Fill numeric NaNs in base numeric features
+for col in base_features:
     df[col] = df[col].fillna(df[col].median())
 
 # One-hot encode handedness
 df = pd.get_dummies(df, columns=["stand", "p_throws"], drop_first=False)
-features += [c for c in df.columns if c.startswith("stand_") or c.startswith("p_throws_")]
 
-# Sort
-df = df.sort_values(by=["pitcher", "game_date", "at_bat_number", "pitch_number"])
-
-# Encode pitch_type labels
-le_pitch = LabelEncoder()
-le_pitch.fit(df["pitch_type"])
-
-# Previous pitch features
+# Previous pitch features (same logic as old app)
 df["previous_pitch"] = df.groupby(["pitcher", "game_pk", "at_bat_number"])["pitch_type"].shift(1)
 df["previous_zone"]  = df.groupby(["pitcher", "game_pk", "at_bat_number"])["zone"].shift(1)
 
 df["previous_pitch"] = df["previous_pitch"].fillna("None")
 df["previous_zone"]  = df["previous_zone"].fillna(-1)
 
-# One-hot previous pitch
 df = pd.get_dummies(df, columns=["previous_pitch"], drop_first=False)
-features += [c for c in df.columns if c.startswith("previous_pitch_")]
-features.append("previous_zone")
 
-# Normalize features
-scaler = StandardScaler()
-df[features] = scaler.fit_transform(df[features])
+# At this point, df has a *bunch* of columns including:
+# - base_features + score_diff
+# - stand_* / p_throws_* one-hots
+# - previous_pitch_* one-hots
+# - previous_zone
+# pt_features and loc_features tell us which subset to actually use.
 
-# Embedding IDs
-df["pitcher_id_embed"] = df["pitcher"].astype("category").cat.codes
-df["batter_id_embed"]  = df["batter"].astype("category").cat.codes
+# ----------------------------------------------------
+# Dropdown lists — NAMES ONLY (Option A)
+# ----------------------------------------------------
+HITTERS = sorted({name.title() for name in df["batter_name"].unique() if name != "Unknown"})
+PITCHERS = sorted({name.title() for name in df["pitcher_name"].unique() if name != "Unknown"})
 
-print("Preprocessing complete.")
+# Name → ID lookup dicts (title-cased keys to match dropdown)
+name_to_batter_id = (
+    df[["batter_name", "batter"]]
+    .drop_duplicates()
+    .assign(batter_name_title=lambda x: x["batter_name"].str.title())
+    .set_index("batter_name_title")["batter"]
+    .to_dict()
+)
 
-# -------------------------------------------------
-# Build 5-pitch sequence for a matchup
-# -------------------------------------------------
-def build_sequence_for_matchup(hitter_name, pitcher_name):
-    hitter_name = hitter_name.lower()
-    pitcher_name = pitcher_name.lower()
+name_to_pitcher_id = (
+    df[["pitcher_name", "pitcher"]]
+    .drop_duplicates()
+    .assign(pitcher_name_title=lambda x: x["pitcher_name"].str.title())
+    .set_index("pitcher_name_title")["pitcher"]
+    .to_dict()
+)
 
-    pair_df = df[(df["batter_name"] == hitter_name) &
-                 (df["pitcher_name"] == pitcher_name)]
+# ----------------------------------------------------
+# Utility: ensure all required feature columns exist
+# (if a dummy column never appears, create it as zeros)
+# ----------------------------------------------------
+def ensure_columns(df_sub, required_cols):
+    for col in required_cols:
+        if col not in df_sub.columns:
+            df_sub[col] = 0.0
+    return df_sub[required_cols]
 
-    if pair_df.empty:
-        raise ValueError(f"No matchup found for {pitcher_name.title()} vs {hitter_name.title()}")
+# ----------------------------------------------------
+# Build Inputs
+# ----------------------------------------------------
+def build_sequence(batter_id, pitcher_id):
+    # Filter to this matchup
+    sub = df[(df["batter"] == batter_id) & (df["pitcher"] == pitcher_id)]
 
-    pair_df = pair_df.sort_values(by=["game_date", "game_pk", "at_bat_number", "pitch_number"])
-    ab_ids = pair_df[["game_pk", "at_bat_number"]].drop_duplicates().values[::-1]
+    # Need enough pitches
+    if len(sub) < SEQ_LEN:
+        raise ValueError("Not enough pitches in this matchup.")
 
-    chosen_ab = None
-    for game_pk, ab_num in ab_ids:
-        ab = pair_df[(pair_df["game_pk"] == game_pk) &
-                     (pair_df["at_bat_number"] == ab_num)]
-        if len(ab) >= sequence_length:
-            chosen_ab = ab
-            break
+    # Sort and take last SEQ_LEN as context
+    sub = sub.sort_values(["game_date", "game_pk", "at_bat_number", "pitch_number"]).tail(SEQ_LEN)
 
-    if chosen_ab is None:
-        raise ValueError("No AB with ≥ 5 pitches")
+    # Make sure the feature matrices have all required columns
+    sub_pt  = ensure_columns(sub.copy(), pt_features)
+    sub_loc = ensure_columns(sub.copy(), loc_features)
 
-    context = chosen_ab.sort_values("pitch_number").iloc[-sequence_length:]
+    # Scale according to training scalers
+    Xpt  = pt_scaler_X.transform(sub_pt.values)[np.newaxis, :, :]
+    Xloc = loc_scaler_X.transform(sub_loc.values)[np.newaxis, :, :]
 
-    X = context[features].values[np.newaxis, :, :].astype(np.float32)
-    pitch_ids = context["pitcher_id_embed"].values[np.newaxis, :].astype(np.int32)
-    batt_ids  = context["batter_id_embed"].values[np.newaxis, :].astype(np.int32)
+    p_ids = sub["pitcher_embed"].values.astype(int)[np.newaxis, :]
+    b_ids = sub["batter_embed"].values.astype(int)[np.newaxis, :]
 
-    return X, pitch_ids, batt_ids
+    return Xpt, Xloc, p_ids, b_ids
 
-# -------------------------------------------------
-# Dropdown lists
-# -------------------------------------------------
-HITTERS  = sorted({n.title() for n in df["batter_name"].unique() if n != "unknown"})
-PITCHERS = sorted({n.title() for n in df["pitcher_name"].unique() if n != "unknown"})
-
-# -------------------------------------------------
+# ----------------------------------------------------
 # Routes
-# -------------------------------------------------
+# ----------------------------------------------------
 @app.route("/", methods=["GET", "POST"])
 def index():
-    prediction_label = None
-    error_message = None
+    pitch_prediction = None
+    location_prediction = None
+    error = None
 
     if request.method == "POST":
-        hitter = request.form["hitter"]
-        pitcher = request.form["pitcher"]
+        hitter_name = request.form["hitter"]
+        pitcher_name = request.form["pitcher"]
 
         try:
-            X, pitch_ids, batt_ids = build_sequence_for_matchup(hitter, pitcher)
-            probs = model.predict([X, pitch_ids, batt_ids], verbose=0)[0]
-            prediction_label = le_pitch.classes_[np.argmax(probs)]
+            # Convert names → MLBAM IDs
+            batter_id  = int(name_to_batter_id[hitter_name])
+            pitcher_id = int(name_to_pitcher_id[pitcher_name])
+
+            Xpt, Xloc, p_ids, b_ids = build_sequence(batter_id, pitcher_id)
+
+            # 1) Pitch type prediction
+            pt_probs = pitchtype_model.predict([Xpt, p_ids, b_ids], verbose=0)[0]
+            pitch_prediction = pt_label_enc.classes_[np.argmax(pt_probs)]
+
+            # 2) Location prediction
+            loc_pred_scaled = location_model.predict(
+                [Xloc, p_ids[:, 0], b_ids[:, 0], pt_probs[np.newaxis, :]],
+                verbose=0
+            )
+            loc_pred = loc_scaler_Y.inverse_transform(loc_pred_scaled)[0]
+            location_prediction = (
+                round(loc_pred[0], 3),
+                round(loc_pred[1], 3)
+            )
+
         except Exception as e:
-            error_message = str(e)
+            error = str(e)
 
     return render_template(
         "index.html",
         hitters=HITTERS,
         pitchers=PITCHERS,
-        prediction=prediction_label,
-        error=error_message
+        prediction=pitch_prediction,
+        location=location_prediction,
+        error=error
     )
 
 if __name__ == "__main__":
