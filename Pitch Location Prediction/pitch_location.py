@@ -233,3 +233,6 @@ plt.xlabel("plate_x")
 plt.ylabel("plate_z")
 plt.legend()
 plt.show()
+
+print("pitch_type_probs length:", len(pitch_type_probs))
+print("location sequences built:", len(X_seq))
