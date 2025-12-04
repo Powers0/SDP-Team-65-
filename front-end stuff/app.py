@@ -43,7 +43,7 @@ for year in [2021, 2022, 2023, 2024]:
 df = pd.concat(dfs, ignore_index=True)
 
 # ----------------------------------------------------
-# Build Names (like old app)
+# Build Names 
 # ----------------------------------------------------
 batter_ids = df["batter"].dropna().unique().astype(int)
 pitcher_ids = df["pitcher"].dropna().unique().astype(int)
@@ -64,14 +64,13 @@ df["batter_name"] = df["batter"].map(batter_map).fillna("Unknown")
 df["pitcher_name"] = df["pitcher"].map(pitcher_map).fillna("Unknown")
 
 # ----------------------------------------------------
-# Embedding IDs (must match training)
+# Embedding IDs 
 # ----------------------------------------------------
 df["pitcher_embed"] = df["pitcher"].astype("category").cat.codes
 df["batter_embed"]  = df["batter"].astype("category").cat.codes
 
 # ----------------------------------------------------
-# Pitch-type style feature engineering (NO SCALING)
-# This recreates the columns that pt_features refers to.
+# Pitch-type style feature engineering 
 # ----------------------------------------------------
 # Start from a copy so we don't accidentally break something if needed later
 df = df.sort_values(["pitcher", "game_date", "game_pk", "at_bat_number", "pitch_number"])
@@ -121,12 +120,6 @@ df["previous_zone"]  = df["previous_zone"].fillna(-1)
 
 df = pd.get_dummies(df, columns=["previous_pitch"], drop_first=False)
 
-# At this point, df has a *bunch* of columns including:
-# - base_features + score_diff
-# - stand_* / p_throws_* one-hots
-# - previous_pitch_* one-hots
-# - previous_zone
-# pt_features and loc_features tell us which subset to actually use.
 
 # ----------------------------------------------------
 # Dropdown lists — NAMES ONLY (Option A)
@@ -153,7 +146,6 @@ name_to_pitcher_id = (
 
 # ----------------------------------------------------
 # Utility: ensure all required feature columns exist
-# (if a dummy column never appears, create it as zeros)
 # ----------------------------------------------------
 def ensure_columns(df_sub, required_cols):
     for col in required_cols:
