@@ -30,7 +30,7 @@ df = df[[c for c in cols if c in df.columns]].copy()
 df = df.dropna(subset=['plate_x', 'plate_z'])
 df = df.reset_index(drop=True)
 
-# encode handedness and pitch_type (we'll label-encode pitch_type then one-hot later)
+# encode handedness and pitch_type
 df['game_date'] = pd.to_datetime(df['game_date'])
 df['pitch_type'] = df['pitch_type'].fillna('UNK')
 df['stand'] = df['stand'].fillna('U')
@@ -49,7 +49,7 @@ num_features = [c for c in num_features if c in df.columns]
 pitch_le = LabelEncoder()
 df['pitch_type_le'] = pitch_le.fit_transform(df['pitch_type'])
 
-# one-hot encoder for batter/pitcher handedness + pitch type (we will one-hot pitch_type)
+# one-hot encoder for batter/pitcher handedness + pitch type
 ohe = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
 cat_to_ohe = ohe.fit_transform(df[['pitch_type_le', 'stand', 'p_throws']])
 
@@ -57,10 +57,6 @@ cat_to_ohe = ohe.fit_transform(df[['pitch_type_le', 'stand', 'p_throws']])
 X_base = df[num_features].fillna(0).astype(float).values
 X = np.hstack([X_base, cat_to_ohe])
 y = df[['plate_x', 'plate_z']].astype(float).values
-
-# We'll build sequences per pitcher: for each pitcher, sliding windows of SEQ_LEN inputs to predict the next plate_x/z
-seqs_X = []
-seqs_y = []
 
 # get pitcher group 
 grouped = df.groupby('pitcher').indices
@@ -98,7 +94,7 @@ scaler.fit(X_train_flat)     # fit only on training
 X_train_scaled = scaler.transform(X_train_flat).reshape((-1, seq_len, nfeat))
 X_test_scaled  = scaler.transform(X_test_flat).reshape((-1, seq_len, nfeat))
 
-# scale targets (optional) — here we predict raw plate_x/plate_z, but scaling target can help.
+# scale targets — here we predict raw plate_x/plate_z, but scaling target can help.
 y_scaler = StandardScaler()
 y_train_scaled = y_scaler.fit_transform(y_train)
 y_test_scaled  = y_scaler.transform(y_test)
@@ -121,13 +117,13 @@ model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
 
 model.summary()
 
-# 8) train
+
 history = model.fit(X_train_scaled, y_train_scaled,
                     validation_data=(X_test_scaled, y_test_scaled),
                     epochs=20,
                     batch_size=256)
 
-# 9) evaluate & sample predictions
+# evaluate
 eval_res = model.evaluate(X_test_scaled, y_test_scaled, verbose=2)
 print("Test loss, test mae (scaled):", eval_res)
 
@@ -143,3 +139,4 @@ print(f"Test MSE (plate_x/z): {mse:.4f}, MAE: {mae:.4f}")
 # show a few example predictions vs ground truth
 for i in range(5):
     print("pred:", y_pred[i], "true:", y_test[i])
+
