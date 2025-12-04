@@ -1,4 +1,3 @@
-# train_pitchlocation_model.py
 
 import numpy as np
 import pickle

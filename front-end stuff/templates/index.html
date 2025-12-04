@@ -1,93 +1,82 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Pitch Predictor</title>
-
-    <!-- jQuery (required for Select2) -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-
-    <!-- Select2 CSS -->
-    <link
-      href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css"
-      rel="stylesheet"
-    />
-
-    <!-- Select2 JS -->
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <title>Pitch Prediction</title>
 
     <style>
-      body {
-        font-family: Arial, sans-serif;
-        padding: 30px;
+      .search-box {
+        margin-bottom: 5px;
+        padding: 6px;
+        width: 250px;
       }
-      h1 {
-        margin-bottom: 20px;
-      }
-      .select2-container {
-        width: 300px !important;
-      }
-      button {
-        margin-top: 20px;
-        padding: 10px 20px;
-        font-size: 16px;
-      }
-      .error {
-        color: red;
-        margin-top: 15px;
-      }
-      .prediction {
-        font-size: 20px;
-        margin-top: 20px;
+      select {
+        width: 260px;
+        padding: 6px;
       }
     </style>
+
+    <script>
+      function filterDropdown(inputId, dropdownId) {
+        const input = document.getElementById(inputId).value.toLowerCase();
+        const options = document.getElementById(dropdownId).options;
+
+        for (let i = 0; i < options.length; i++) {
+          const text = options[i].text.toLowerCase();
+          options[i].style.display = text.includes(input) ? "" : "none";
+        }
+      }
+    </script>
   </head>
 
   <body>
-    <h1>Pitch Type Prediction</h1>
+    <h2>Pitch Prediction Demo</h2>
 
     <form method="POST">
-      <label><b>Hitter:</b></label
-      ><br />
-      <select name="hitter" id="hitter-select">
-        {% for h in hitters %}
-        <option value="{{h}}">{{h}}</option>
+      <!-- ===================== HITTER SEARCH ===================== -->
+      <label>Hitter:</label><br />
+      <input
+        id="hitterSearch"
+        class="search-box"
+        type="text"
+        placeholder="Search hitter..."
+        onkeyup="filterDropdown('hitterSearch', 'hitterDropdown')"
+      />
+
+      <select name="hitter" id="hitterDropdown">
+        {% for name in hitters %}
+        <option value="{{ name }}">{{ name }}</option>
         {% endfor %}
       </select>
 
       <br /><br />
 
-      <label><b>Pitcher:</b></label
-      ><br />
-      <select name="pitcher" id="pitcher-select">
-        {% for p in pitchers %}
-        <option value="{{p}}">{{p}}</option>
+      <!-- ===================== PITCHER SEARCH ===================== -->
+      <label>Pitcher:</label><br />
+      <input
+        id="pitcherSearch"
+        class="search-box"
+        type="text"
+        placeholder="Search pitcher..."
+        onkeyup="filterDropdown('pitcherSearch', 'pitcherDropdown')"
+      />
+
+      <select name="pitcher" id="pitcherDropdown">
+        {% for name in pitchers %}
+        <option value="{{ name }}">{{ name }}</option>
         {% endfor %}
       </select>
 
       <br /><br />
-
       <button type="submit">Predict</button>
     </form>
 
+    <!-- Results -->
     {% if prediction %}
-    <p class="prediction">Predicted Next Pitch Type: <b>{{ prediction }}</b></p>
+    <h3>Predicted Pitch Type: {{ prediction }}</h3>
+    {% endif %} {% if location %}
+    <h3>Predicted Location: {{ location }}</h3>
     {% endif %} {% if error %}
-    <p class="error">Error: {{ error }}</p>
+    <p style="color: red">Error: {{ error }}</p>
     {% endif %}
-
-    <script>
-      // Activate Select2 on both dropdowns
-      $(document).ready(function () {
-        $("#hitter-select").select2({
-          placeholder: "Select a hitter",
-          allowClear: true,
-        });
-
-        $("#pitcher-select").select2({
-          placeholder: "Select a pitcher",
-          allowClear: true,
-        });
-      });
-    </script>
   </body>
 </html>

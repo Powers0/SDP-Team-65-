@@ -1,4 +1,4 @@
-# build_pitchlocation_dataset.py
+
 
 import pandas as pd
 import numpy as np
@@ -6,7 +6,7 @@ import pickle
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 
-SEQ_LEN = 8
+SEQ_LEN = 5
 TEST_SIZE = 0.15
 RANDOM_SEED = 42
 
@@ -14,10 +14,7 @@ CSV_DIR = "../csv data/"
 TYPE_PROBS_PATH = "../Pitch Type Prediction/artifacts/pitch_type_probs.npy"
 ARTIFACTS = "artifacts/"
 
-# If you want **exact** data behavior as the original code that used 2022–2024:
 YEARS = [2021, 2022, 2023, 2024]
-# If you truly want 2021 too, change to [2021, 2022, 2023, 2024]
-# but then your results will obviously differ from the old 2022–24 script.
 
 
 def load_statcast():

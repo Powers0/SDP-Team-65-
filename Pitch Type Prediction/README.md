@@ -1,102 +1,62 @@
-Overview
+This module trains a neural network model to predict the next pitch type in an MLB at-bat using Statcast pitch-by-pitch data.
+The system uses LSTM sequence modeling, learned pitcher and batter embeddings, and a fully modular preprocessing + training pipeline.
 
-    This script downloads (or loads cached) Statcast pitch-by-pitch CSV data for specified seasons, pre-processes it into fixed-length pitch sequences, builds an LSTM model augmented with learned embeddings for pitchers and batters, trains the model to predict pitch type, and evaluates the result (accuracy, classification report, confusion matrix, and training plots)
+build_pitchtypedata.py
+    Applies preprocessing
+	•	Converts baserunners → 0/1
+	•	Computes score differential (score_diff)
+	•	Fixes missing zones (zone=-1)
+	•	One-hot encodes:
+	•	batter stance (stand)
+	•	pitcher throwing hand (p_throws)
+	•	previous pitch type (previous_pitch)
+	•	Computes previous pitch zone (previous_zone)
+	•	Builds:
+	•	pitcher_id = categorical integer code
+	•	batter_id = categorical integer code
 
+    Creates fixed-length sequences
+    For each at-bat: [pitch_t-5, pitch_t-4, pitch_t-3, pitch_t-2, pitch_t-1] → pitch_type_t
+    Saves reusable artifacts
+	•	features.pkl (column order)
+	•	scaler.pkl (fit ONLY on training data)
+	•	label_encoder.pkl
+	•	X_train / X_test
+	•	pitcher/batter ID sequences
+	•	pitchtype_model.keras (after training)
 
-Features
-
-    'balls', 'strikes', 'outs_when_up', 'inning',
-    'on_1b', 'on_2b', 'on_3b', 'bat_score', 'fld_score', 'zone', 'stand', 'p_throws'
-
-
-Common Pitch Types Used
-    ['FF', 'SL', 'SI', 'CH', 'CU', 'FC', 'ST']
-
-
-Encoding and Standardization
-    Handedness (stand and p_throws) one hot encoded
-    previous_pitch one hot encoded
-    previous_zone (previous pitch location zone) kept as numeric (with -1 for missing) then standardized
-
-
-Sequence Creation
-    For each plate appearance (grouped by pitcher, game_pk, at_bat_number), sliding-window sequences are created of length sequence_length (default 5).
-	Each training sample uses the prior sequence_length timesteps (features + pitcher_id sequence + batter_id sequence) to predict the next pitch type.
-	Split sequences into training (80%) and test (20%) partitions.
-	Model architecture:
-
-
-Model Architecture
-    Inputs: input_features (sequence_length × feature_dim), input_pitcher (sequence of pitcher ids), input_batter (sequence of batter ids).
-	Embeddings: small learned embeddings per pitcher and batter (embedding_dim=8).
-	Concatenate features and embeddings along the last axis for each timestep.
-	Masking layer applied (mask value 0.0).
-	Single LSTM layer (128 units) followed by Dropout and Dense layers.
-	Softmax final classification over len(le_pitch.classes_) pitch classes.
-	Train with categorical crossentropy, adam optimizer, early stopping on validation loss
+    These artifacts let the front-end run predictions without preprocessing the raw CSV data again.
 
 
-Evaluation
-    test-set accuracy, classification report, confusion matrix, and training/validation accuracy plots.
+train_pitchtypemodel.py
+    Uses the artifact dataset and trains the LSTM + embedding model.
+
+Key training features:
+	•	Train/test split (80/20)
+	•	Validation split (20%)
+	•	EarlyStopping(patience=3)
+	•	Accuracy, classification report, confusion matrix saved/displayed
+	•	Softmax probability output saved to pitch_type_probs.npy for the pitch-location model
 
 
-Design Decisions
-    Embedding dimension = 8. Small embedding dimension balances representational capacity with overfitting risk. 8 is a reasonable default given likely pitcher/batter counts and dataset size—you can increase with more data or tune via validation.
+Model Architecture pitch_model_lstm.py
+    This architecture was designed for interpretable sequential modeling while embedding characteristics of pitchers and batters.
 
+Inputs
+	1.	X → (batch, SEQ_LEN, num_features)
+	2.	pitcher_id → (batch, SEQ_LEN)
+	3.	batter_id → (batch, SEQ_LEN)
 
-Architecture choices
-	LSTM(128) — adequate capacity for learning medium-length dependencies; something in the 64–256 range is typical. 128 balances learning capacity and training speed.
-	Dropout (0.3) — mitigates overfitting on dense layers and recurrent outputs.
-	Dense(64) before final softmax helps combine the LSTM summary into discriminative representations.
-	Categorical crossentropy with softmax is the correct loss for multi-class pitch-type classification.
+    Embeddings
+    pitcher_emb = Embedding(num_pitchers, 8)
+    batter_emb  = Embedding(num_batters, 8)
+    Each pitcher/batter learns an 8-dimensional vector capturing tendencies such as:
+	•	pitch repertoire & sequencing
+	•	release consistency
+	•	batter hot/cold zones
+	•	handedness effects
 
+    Concatenation
 
-Training choices
-	EarlyStopping on validation loss with restore_best_weights=True prevents overfitting and selects the best epoch observed on validation data.
-	Validation split within fit (0.2) means the training set has an internal validation set for early stopping/hyperparameter signal.
-
-
-
-Sample Output
-Evaluating model...
-Test Accuracy: 52.69%
-21/21 ━━━━━━━━━━━━━━━━━━━━ 0s 14ms/step 
-
-Classification Report:
-              precision    recall  f1-score   support
-
-          CH       0.31      0.23      0.26        57
-          CU       0.17      0.04      0.06        25
-          FC       0.56      0.45      0.50        42
-          FF       0.55      0.66      0.60       252
-          SI       0.67      0.67      0.67       121
-          SL       0.48      0.38      0.43       121
-          ST       0.38      0.50      0.43        50
-
-    accuracy                           0.53       668
-   macro avg       0.45      0.42      0.42       668
-weighted avg       0.51      0.53      0.51       668
-
-
-Possible Improvements:
-    Fix scaler leakage: Fit StandardScaler only on training data.
-    Use time-based validation: Train on older seasons and evaluate on the newest season to better estimate generalization
-    Class balancing / focal loss / class weights: Mitigate imbalance.
-    Set seeds for numpy and tensorflow for reproducibility (np.random.seed(42) and tf.random.set_seed(42)) and ensure deterministic GPU config if needed
-    Add previous pitch velocity feature
-    Add pitch count as a feature
-    Current AB vs Entire Game History vs Game History Between Pitcher and Batter, try modeling just one pitcher and batter 
-
-
-
-Encoding for Pitchers and Batters:
-    df['pitcher_id'] = df['pitcher'].astype('category').cat.codes
-    df['batter_id'] = df['batter'].astype('category').cat.codes
-    num_pitchers = df['pitcher_id'].nunique()
-    num_batters = df['batter_id'].nunique() 
-    Turns each unique pitcher and abtter into an integer ID
-
-    pitcher_emb = Embedding(input_dim=num_pitchers, output_dim=embedding_dim)(input_pitcher)
-    batter_emb = Embedding(input_dim=num_batters, output_dim=embedding_dim)(input_batter)
-    Embedding creates a dense vector of 8 numbers where the model learns the best 8-number representation for each player
-    These numbers start random, but during training, they're updated so that similar pitchers (and batters) get similar embeddings
+    At each timestep:
+        [features | pitcher_emb | batter_emb]

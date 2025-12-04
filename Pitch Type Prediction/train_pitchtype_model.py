@@ -1,4 +1,4 @@
-# train_pitchtype_model.py
+
 
 import numpy as np
 import pickle

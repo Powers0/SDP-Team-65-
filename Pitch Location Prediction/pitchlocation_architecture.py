@@ -1,4 +1,4 @@
-# pitchlocation_architecture.py
+
 
 from tensorflow.keras.layers import Input, Embedding, LSTM, Dense, Dropout, Concatenate, RepeatVector
 from tensorflow.keras.models import Model
