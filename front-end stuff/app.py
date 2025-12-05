@@ -4,7 +4,7 @@ import pandas as pd
 from tensorflow.keras.models import load_model
 import pickle
 from pybaseball import playerid_reverse_lookup
-from sklearn.preprocessing import LabelEncoder  # only if you want to reuse locally
+from sklearn.preprocessing import LabelEncoder  
 
 # ----------------------------------------------------
 # Config
