@@ -12,3 +12,4 @@ Model Notes
   Train a couple more epochs on a specific pitcher/batter pair and see how well it does on predicting the last few years of data 
   Get started on result prediction models
     Separate models for swing/take as opposed to results on contact
+  Try to get a super high accuracy by cheating on Owen's model
