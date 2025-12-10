@@ -16,6 +16,8 @@ print("loading data...")
 df = statcast(start_dt="2024-03-01", end_dt="2024-11-30")   # pybaseball statcast fetch
 print("Downloaded rows:", len(df))
 
+df["z_norm"] = (df["plate_z"] - df["sz_bot"]) / (df["sz_top"] - df["sz_bot"])
+
 
 cols = [
     'game_date', 'pitch_type', 'pitcher', 'batter', 'pitch_number',
@@ -56,7 +58,7 @@ cat_to_ohe = ohe.fit_transform(df[['pitch_type_le', 'stand', 'p_throws']])
 # concatenate numeric + one-hot into a single feature matrix for each pitch
 X_base = df[num_features].fillna(0).astype(float).values
 X = np.hstack([X_base, cat_to_ohe])
-y = df[['plate_x', 'plate_z']].astype(float).values
+y = df[['plate_x', 'z_norm']].astype(float).values
 
 # get pitcher group 
 grouped = df.groupby('pitcher').indices
@@ -139,4 +141,5 @@ print(f"Test MSE (plate_x/z): {mse:.4f}, MAE: {mae:.4f}")
 # show a few example predictions vs ground truth
 for i in range(5):
     print("pred:", y_pred[i], "true:", y_test[i])
+
 
