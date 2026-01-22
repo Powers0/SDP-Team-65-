@@ -92,6 +92,7 @@ def build_sequences(df, features):
 
 if __name__ == "__main__":
     df = load_statcast()
+
     df, features, le_pitch, scaler = preprocess(df)
     X, Y, P, B = build_sequences(df, features)
 
