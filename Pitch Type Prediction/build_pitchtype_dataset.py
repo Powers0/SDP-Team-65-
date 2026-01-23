@@ -9,6 +9,8 @@ SEQUENCE_LEN = 5
 # Which raw CSVs to load
 YEARS = [2021, 2022, 2023, 2024]
 
+SHARED_DIR = "../artifacts/shared/" 
+
 
 def load_statcast():
     dfs = []
@@ -62,9 +64,8 @@ def preprocess(df):
     scaler = StandardScaler()
     df[features] = scaler.fit_transform(df[features])
 
-    # Embedding IDs
-    df["pitcher_id"] = df["pitcher"].astype("category").cat.codes
-    df["batter_id"] = df["batter"].astype("category").cat.codes
+    df["pitcher_id"] = pitcher_le.transform(df["pitcher"].astype(int))
+    df["batter_id"]  = batter_le.transform(df["batter"].astype(int))
 
     return df, features, le_pitch, scaler
 
@@ -91,6 +92,9 @@ def build_sequences(df, features):
 
 
 if __name__ == "__main__":
+    pitcher_le = pickle.load(open(SHARED_DIR + "pitcher_le.pkl", "rb"))
+    batter_le  = pickle.load(open(SHARED_DIR + "batter_le.pkl", "rb"))
+    
     df = load_statcast()
     df, features, le_pitch, scaler = preprocess(df)
     X, Y, P, B = build_sequences(df, features)
