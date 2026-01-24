@@ -13,6 +13,7 @@ RANDOM_SEED = 42
 CSV_DIR = "../csv data/"
 TYPE_PROBS_PATH = "../Pitch Type Prediction/artifacts/pitch_type_probs.npy"
 ARTIFACTS = "artifacts/"
+SHARED_DIR = "../artifacts/shared/" 
 
 YEARS = [2021, 2022, 2023, 2024]
 
@@ -46,8 +47,9 @@ def preprocess(df):
     df = pd.get_dummies(df, columns=["stand","p_throws"], drop_first=False)
     features += [c for c in df.columns if c.startswith("stand_") or c.startswith("p_throws_")]
 
-    df["pitcher_id"] = df["pitcher"].astype("category").cat.codes
-    df["batter_id"] = df["batter"].astype("category").cat.codes
+    df["pitcher_id"] = pitcher_le.transform(df["pitcher"].astype(int))
+    df["batter_id"]  = batter_le.transform(df["batter"].astype(int))
+
 
     df = df.sort_values(by=["pitcher","game_date","at_bat_number","pitch_number"])
 
@@ -94,6 +96,9 @@ def build_sequences(df, X, Y, pitch_type_probs):
 
 
 if __name__ == "__main__":
+    pitcher_le = pickle.load(open(SHARED_DIR + "pitcher_le.pkl", "rb"))
+    batter_le  = pickle.load(open(SHARED_DIR + "batter_le.pkl", "rb"))
+    
     print("Loading statcast data...")
     df = load_statcast()
 
