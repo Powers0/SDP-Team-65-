@@ -17,9 +17,16 @@ SERVING_DF = load_serving_table(SERVING_TABLE_PATH)
 
 @app.get("/api/players")
 def api_players():
-    # MVP: IDs only (add name mapping later)
-    pitchers = [{"id": int(x), "label": str(int(x))} for x in ART["pitcher_le"].classes_]
-    batters  = [{"id": int(x), "label": str(int(x))} for x in ART["batter_le"].classes_]
+    names_p = ART["player_names"]["pitchers"]
+    names_b = ART["player_names"]["batters"]
+    pitchers = [
+        {"id": int(x), "label": names_p.get(str(int(x)), str(int(x)))}
+        for x in ART["pitcher_le"].classes_
+    ]
+    batters = [
+        {"id": int(x), "label": names_b.get(str(int(x)), str(int(x)))}
+        for x in ART["batter_le"].classes_
+    ]
     return jsonify({"pitchers": pitchers, "batters": batters})
 
 @app.post("/api/predict")
