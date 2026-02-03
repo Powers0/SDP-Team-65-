@@ -11,9 +11,15 @@ export default function HomePage() {
   const [pitcher, setPitcher] = useState(null);
   const [batter, setBatter] = useState(null);
   const [err, setErr] = useState("");
-  const [outs, setOuts] = useState(0);
 
-  // keep react-select styling intact (black text, readable options)
+  // Game context state
+  const [outs, setOuts] = useState(0);
+  const [offScore, setOffScore] = useState(0);
+  const [defScore, setDefScore] = useState(0);
+  const [inning, setInning] = useState(1);
+  const [bases, setBases] = useState({ on1: false, on2: false, on3: false });
+
+  // black text, readable options
   const selectStyles = {
     control: (base, state) => ({
       ...base,
@@ -106,6 +112,19 @@ export default function HomePage() {
     [players.batters],
   );
 
+  //  clamp score and inning inputs
+  function clampScore(v) {
+    const n = Number(v);
+    if (Number.isNaN(n)) return 0;
+    return Math.max(0, Math.min(99, n));
+  }
+
+  function clampInning(v) {
+    const n = Number(v);
+    if (Number.isNaN(n)) return 1;
+    return Math.max(1, Math.min(9, n));
+  }
+
   return (
     <div className="home">
       <div className="home-card">
@@ -150,15 +169,14 @@ export default function HomePage() {
           <div className="game-context-header">
             <h2>Game Context</h2>
           </div>
+
           <div className="game-context-body">
+            {/* OUTS */}
             <div className="context-field">
               <div className="context-label-row">
                 <label className="context-label">Outs</label>
-                <div
-                  className="outs-lights"
-                  role="radiogroup"
-                  aria-label="Outs"
-                >
+
+                <div className="outs-lights" aria-label="Outs">
                   {[1, 2].map((n) => (
                     <label
                       key={n}
@@ -167,18 +185,10 @@ export default function HomePage() {
                     >
                       <input
                         type="checkbox"
-                        name="outs"
                         checked={outs >= n}
                         onChange={() => {
-                          // Two-light scoreboard behavior:
-                          // none lit => 0 outs
-                          // left lit => 1 out
-                          // both lit => 2 outs
-                          if (n === 1) {
-                            setOuts(outs >= 1 ? 0 : 1);
-                          } else {
-                            setOuts(outs === 2 ? 1 : 2);
-                          }
+                          if (n === 1) setOuts(outs >= 1 ? 0 : 1);
+                          else setOuts(outs === 2 ? 1 : 2);
                         }}
                         aria-label={`${n} out${n === 1 ? "" : "s"}`}
                       />
@@ -188,14 +198,79 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
-            <div className="score">
-              <p>Score:</p>
+
+            {/* SCORE */}
+            <div className="context-field">
+              <div className="context-label-row">
+                <label className="context-label">Score</label>
+
+                <div className="score-inputs" aria-label="Score">
+                  <input
+                    className="score-box"
+                    type="number"
+                    min="0"
+                    max="99"
+                    value={offScore}
+                    onChange={(e) => setOffScore(clampScore(e.target.value))}
+                    aria-label="Offensive Score"
+                  />
+                  <span className="score-dash">–</span>
+                  <input
+                    className="score-box"
+                    type="number"
+                    min="0"
+                    max="99"
+                    value={defScore}
+                    onChange={(e) => setDefScore(clampScore(e.target.value))}
+                    aria-label="Defensive Score"
+                  />
+                </div>
+              </div>
+              <small className="score-hint">(Off-Def)</small>
             </div>
-            <div className="baserunners">
-              <p>Baserunners:</p>
+
+            <div className="context-field">
+              <div className="context-label-row">
+                <label className="context-label">Baserunners</label>
+                <div className="bases-diamond">
+                  <button
+                    type="button"
+                    className={`base base-3b ${bases.on3 ? "on" : ""}`}
+                    onClick={() => setBases((p) => ({ ...p, on3: !p.on3 }))}
+                    aria-pressed={bases.on3}
+                    aria-label="Runner on 3B"
+                  />
+                  <button
+                    type="button"
+                    className={`base base-2b ${bases.on2 ? "on" : ""}`}
+                    onClick={() => setBases((p) => ({ ...p, on2: !p.on2 }))}
+                    aria-pressed={bases.on2}
+                    aria-label="Runner on 2B"
+                  />
+                  <button
+                    type="button"
+                    className={`base base-1b ${bases.on1 ? "on" : ""}`}
+                    onClick={() => setBases((p) => ({ ...p, on1: !p.on1 }))}
+                    aria-pressed={bases.on1}
+                    aria-label="Runner on 1B"
+                  />
+                </div>
+              </div>
             </div>
-            <div className="inning">
-              <p>Inning:</p>
+
+            <div className="context-field">
+              <div className="context-label-row">
+                <label className="context-label">Inning</label>
+                <input
+                  className="inning-box"
+                  type="number"
+                  min="1"
+                  max="9"
+                  value={inning}
+                  onChange={(e) => setInning(clampInning(e.target.value))}
+                  aria-label="Inning"
+                />
+              </div>
             </div>
           </div>
         </div>
