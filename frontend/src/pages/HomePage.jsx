@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import Select from "react-select";
 import { getPlayers } from "../api";
+import { useLocation } from "react-router-dom";
 import "../HomePage.css";
 
 export default function HomePage() {
@@ -18,6 +19,7 @@ export default function HomePage() {
   const [defScore, setDefScore] = useState(0);
   const [inning, setInning] = useState(1);
   const [bases, setBases] = useState({ on1: false, on2: false, on3: false });
+  const { state } = useLocation();
 
   // black text, readable options
   const selectStyles = {
@@ -78,29 +80,42 @@ export default function HomePage() {
     }),
   };
 
+  function setDefaults(data) {
+    if (data.pitchers?.length)
+      setPitcher({ value: data.pitchers[0].id, label: data.pitchers[0].label });
+    if (data.batters?.length)
+      setBatter({ value: data.batters[0].id, label: data.batters[0].label });
+
+    setOuts(0);
+    setOffScore(0);
+    setDefScore(0);
+    setInning(1);
+    setBases({ on1: false, on2: false, on3: false });
+  }
+
   useEffect(() => {
     (async () => {
       try {
         const data = await getPlayers();
         setPlayers(data);
 
-        if (data.pitchers?.length) {
-          setPitcher({
-            value: data.pitchers[0].id,
-            label: data.pitchers[0].label,
-          });
-        }
-        if (data.batters?.length) {
-          setBatter({
-            value: data.batters[0].id,
-            label: data.batters[0].label,
-          });
+        if (state?.mode === "preserve") {
+          setPitcher(state.pitcher);
+          setBatter(state.batter);
+          setOuts(state.outs);
+          setOffScore(state.offScore);
+          setDefScore(state.defScore);
+          setInning(state.inning);
+          setBases(state.bases);
+        } else {
+          // covers both first time load state and reset mode
+          setDefaults(data);
         }
       } catch (e) {
         setErr(String(e));
       }
     })();
-  }, []);
+  }, [state]);
 
   const pitcherOptions = useMemo(
     () => players.pitchers.map((p) => ({ value: p.id, label: p.label })),
@@ -112,7 +127,7 @@ export default function HomePage() {
     [players.batters],
   );
 
-  //  clamp score and inning inputs
+  //  clamp score and inning
   function clampScore(v) {
     const n = Number(v);
     if (Number.isNaN(n)) return 0;
@@ -174,7 +189,7 @@ export default function HomePage() {
             {/* OUTS */}
             <div className="context-field">
               <div className="context-label-row">
-                <label className="context-label">Outs</label>
+                <label className="context-label">Outs:</label>
 
                 <div className="outs-lights" aria-label="Outs">
                   {[1, 2].map((n) => (
@@ -202,7 +217,7 @@ export default function HomePage() {
             {/* SCORE */}
             <div className="context-field">
               <div className="context-label-row">
-                <label className="context-label">Score</label>
+                <label className="context-label">Score:</label>
 
                 <div className="score-inputs" aria-label="Score">
                   <input
@@ -231,7 +246,7 @@ export default function HomePage() {
 
             <div className="context-field">
               <div className="context-label-row">
-                <label className="context-label">Baserunners</label>
+                <label className="context-label">Baserunners:</label>
                 <div className="bases-diamond">
                   <button
                     type="button"
@@ -260,7 +275,7 @@ export default function HomePage() {
 
             <div className="context-field">
               <div className="context-label-row">
-                <label className="context-label">Inning</label>
+                <label className="context-label">Inning:</label>
                 <input
                   className="inning-box"
                   type="number"
@@ -275,7 +290,22 @@ export default function HomePage() {
           </div>
         </div>
 
-        <button className="play-button" onClick={() => navigate("/simulator")}>
+        <button
+          className="play-button"
+          onClick={() =>
+            navigate("/simulator", {
+              state: {
+                pitcher,
+                batter,
+                outs,
+                offScore,
+                defScore,
+                inning,
+                bases,
+              },
+            })
+          }
+        >
           Play Ball!
         </button>
       </div>

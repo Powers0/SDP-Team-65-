@@ -1,141 +1,106 @@
-import { useEffect, useMemo, useState } from "react";
-import Select from "react-select";
-import { getPlayers, predict } from "../api";
+import { useLocation, useNavigate } from "react-router-dom";
+import "../SimulatorPage.css";
 
-export default function App() {
-  const [players, setPlayers] = useState({ pitchers: [], batters: [] });
-  const [pitcher, setPitcher] = useState(null); // store selected option object
-  const [batter, setBatter] = useState(null);
-  const [result, setResult] = useState(null);
-  const [err, setErr] = useState("");
+export default function SimulatorPage() {
+  const { state } = useLocation();
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const data = await getPlayers();
-        setPlayers(data);
-
-        // default selections
-        if (data.pitchers?.length)
-          setPitcher({
-            value: data.pitchers[0].id,
-            label: data.pitchers[0].label,
-          });
-        if (data.batters?.length)
-          setBatter({
-            value: data.batters[0].id,
-            label: data.batters[0].label,
-          });
-      } catch (e) {
-        setErr(String(e));
-      }
-    })();
-  }, []);
-
-  const pitcherOptions = useMemo(
-    () => players.pitchers.map((p) => ({ value: p.id, label: p.label })),
-    [players.pitchers],
-  );
-
-  const batterOptions = useMemo(
-    () => players.batters.map((b) => ({ value: b.id, label: b.label })),
-    [players.batters],
-  );
-
-  async function onPlay() {
-    setErr("");
-    setResult(null);
-    try {
-      if (!pitcher || !batter)
-        throw new Error("Select a pitcher and batter first.");
-      const data = await predict(Number(pitcher.value), Number(batter.value));
-      setResult(data);
-    } catch (e) {
-      setErr(String(e));
-    }
+  // in case user refreshes or visits directly
+  if (!state) {
+    return (
+      <div style={{ padding: 24 }}>
+        <p>Missing game setup. Please go back and select players + context.</p>
+        <button onClick={() => navigate("/")}>Back to Home</button>
+      </div>
+    );
   }
 
-  return (
-    <div
-      style={{ maxWidth: 800, margin: "40px auto", fontFamily: "system-ui" }}
-    >
-      <h1>At Bat Simulator</h1>
+  const { pitcher, batter, outs, offScore, defScore, inning, bases } = state;
 
-      <div style={{ display: "flex", gap: 16, marginTop: 20 }}>
-        <div style={{ flex: 1 }}>
-          <label>Pitcher</label>
-          <div style={{ marginTop: 6 }}>
-            <Select
-              value={pitcher}
-              onChange={setPitcher}
-              options={pitcherOptions}
-              placeholder="Search pitcher..."
-              isClearable
-              isSearchable
-              styles={{
-                singleValue: (base) => ({ ...base, color: "black" }),
-                input: (base) => ({ ...base, color: "black" }),
-                option: (base, state) => ({
-                  ...base,
-                  color: "black",
-                  backgroundColor: state.isFocused ? "#eee" : "white",
-                }),
-              }}
-            />
+  return (
+    <div className="sim-page">
+      <div className="sim-header">
+        <button
+          className="header-button"
+          onClick={() =>
+            navigate("/", {
+              state: {
+                pitcher,
+                batter,
+                outs,
+                offScore,
+                defScore,
+                inning,
+                bases,
+                mode: "preserve",
+              },
+            })
+          }
+        >
+          At-Bat Simulator
+        </button>
+        <div className="sim-divider" />
+      </div>
+
+      <div className="sim-main">
+        {/* LEFT */}
+        <div className="sim-left">
+          <div className="panel scoreboard">
+            <div className="scoreboard-header">
+              <div className="scoreboard-hitter">
+                <div className="label">Batter</div>
+                <div className="value">
+                  {batter?.label ?? batter?.name ?? "Unknown"}
+                </div>
+              </div>
+            </div>
+
+            <div className="scoreboard-row">
+              <div className="label">Coming soon</div>
+            </div>
+
+            <div className="scoreboard-row">
+              <div className="label">BaseRunners</div>
+              <div className="bases-diamond" aria-label="Baserunners">
+                <span className={`base base-3b ${bases?.on3 ? "on" : ""}`} />
+                <span className={`base base-2b ${bases?.on2 ? "on" : ""}`} />
+                <span className={`base base-1b ${bases?.on1 ? "on" : ""}`} />
+              </div>
+            </div>
           </div>
         </div>
 
-        <div style={{ flex: 1 }}>
-          <label>Batter</label>
-          <div style={{ marginTop: 6 }}>
-            <Select
-              value={batter}
-              onChange={setBatter}
-              options={batterOptions}
-              placeholder="Search batter..."
-              isClearable
-              isSearchable
-              styles={{
-                singleValue: (base) => ({ ...base, color: "black" }),
-                input: (base) => ({ ...base, color: "black" }),
-                option: (base, state) => ({
-                  ...base,
-                  color: "black",
-                  backgroundColor: state.isFocused ? "#eee" : "white",
-                }),
-              }}
-            />
+        {/* CENTER */}
+        <div className="sim-center">
+          <div className="panel">Center coming soon</div>
+        </div>
+
+        {/* RIGHT */}
+        <div className="sim-right">
+          <div className="panel scoreboard">
+            <div className="scoreboard-header">
+              <div className="scoreboard-pitcher">
+                <div className="label">Pitcher</div>
+                <div className="value">
+                  {pitcher?.label ?? pitcher?.name ?? "Unknown"}
+                </div>
+              </div>
+            </div>
+
+            <div className="scoreboard-row">
+              <div className="label">Score</div>
+              <div className="value mono">
+                {offScore}–{defScore} <span className="hint">(Off–Def)</span>
+              </div>
+            </div>
+
+            <div className="scoreboard-row">
+              <div className="label">Inning</div>
+              <div className="value mono">{inning}</div>
+            </div>
           </div>
         </div>
       </div>
-
-      <button
-        onClick={onPlay}
-        style={{ marginTop: 16, padding: "10px 14px", cursor: "pointer" }}
-      >
-        Play
-      </button>
-
-      {err && (
-        <div style={{ marginTop: 16, color: "crimson" }}>
-          <b>Error:</b> {err}
-        </div>
-      )}
-
-      {result && (
-        <pre
-          style={{
-            marginTop: 16,
-            padding: 12,
-            background: "#f6f6f6",
-            color: "black",
-            borderRadius: 8,
-            overflowX: "auto",
-          }}
-        >
-          {JSON.stringify(result, null, 2)}
-        </pre>
-      )}
     </div>
   );
 }
