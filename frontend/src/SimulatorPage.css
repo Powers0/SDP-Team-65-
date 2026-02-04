@@ -1,0 +1,82 @@
+.sim-header {
+  padding: 16px 24px 8px;
+}
+
+.header-button {
+  background: none;
+  border: none;
+  padding: 0;
+
+  font-size: 32px;
+  font-weight: 700;
+  cursor: pointer;
+  color: inherit;
+}
+
+.header-button:hover {
+  opacity: 0.8;
+}
+
+.sim-divider {
+  margin-top: 12px;
+  height: 1px;
+  background-color: #ddd;
+  width: 100%;
+}
+
+.sim-page {
+  min-height: 100vh;
+  padding: 24px 32px;
+}
+
+.sim-main {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.panel {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sim-right {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.scoreboard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.scoreboard-header {
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.label {
+  font-size: 12px;
+  opacity: 0.75;
+  margin-bottom: 4px;
+}
+
+.value {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.mono {
+  font-variant-numeric: tabular-nums;
+}
+
+.hint {
+  font-size: 12px;
+  opacity: 0.7;
+  margin-left: 6px;
+}
