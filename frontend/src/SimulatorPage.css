@@ -2,6 +2,11 @@
   padding: 16px 24px 8px;
 }
 
+.scoreboard-hitter .value,
+.scoreboard-pitcher .value {
+  text-transform: capitalize;
+}
+
 .header-button {
   background: none;
   border: none;
@@ -58,6 +63,15 @@
 .scoreboard-header {
   padding-bottom: 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  margin-bottom: 16px;
+}
+
+.scoreboard-row {
+  margin-bottom: 16px;
+}
+
+.scoreboard-row.baserunners .label {
+  margin-bottom: 16px;
 }
 
 .label {
@@ -79,4 +93,89 @@
   font-size: 12px;
   opacity: 0.7;
   margin-left: 6px;
+}
+
+.scoreboard-row.count .label {
+  margin-bottom: 8px;
+}
+
+.count-display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.count-text {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.count-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #2b2b2b; /* off */
+  border: 1px solid #444;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.count-lights {
+  display: grid;
+  row-gap: 6px; /* vertical gap between the two rows */
+}
+
+.count-row {
+  display: grid;
+  column-gap: 8px; /* horizontal gap between dots */
+  align-items: center;
+}
+
+.count-row-top {
+  grid-template-columns: repeat(3, auto);
+}
+
+.count-row-bottom {
+  grid-template-columns: repeat(2, auto);
+  justify-content: start;
+}
+
+.count-dot::after {
+  content: "";
+  display: block;
+  width: 5px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(3px, 3px);
+}
+
+/* balls on: green */
+.count-dot.ball.on {
+  background: radial-gradient(circle at 30% 30%, #8dff9a, #1f8a2a 70%);
+  border-color: rgba(141, 255, 154, 0.9);
+  box-shadow:
+    0 0 8px rgba(50, 255, 120, 0.55),
+    0 0 16px rgba(50, 255, 120, 0.25);
+}
+
+/* strikes on: amber */
+.count-dot.strike.on {
+  background: radial-gradient(circle at 30% 30%, #ffe08a, #b88300 70%);
+  border-color: rgba(255, 224, 138, 0.95);
+  box-shadow:
+    0 0 8px rgba(255, 200, 60, 0.55),
+    0 0 16px rgba(255, 200, 60, 0.25);
+}
+
+.scoreboard-row.outs .label {
+  margin-bottom: 8px;
+}
+
+.outs-light.on {
+  background: radial-gradient(circle at 30% 30%, #ff7a7a, #b00000 70%);
+  border-color: #ff4d4d;
+  box-shadow:
+    0 0 8px rgba(255, 0, 0, 0.75),
+    0 0 16px rgba(255, 0, 0, 0.45);
 }

@@ -144,7 +144,7 @@ export default function HomePage() {
     <div className="home">
       <div className="home-card">
         <div className="home-header">
-          <h1>At Bat Simulator</h1>
+          <h1>At-Bat Simulator</h1>
           <p>Simulate MLB at-bats based on game context</p>
         </div>
 
