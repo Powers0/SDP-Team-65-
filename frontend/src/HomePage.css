@@ -21,6 +21,7 @@
 .player-select {
   flex: 1;
   text-align: left;
+  min-width: 225px;
 }
 
 .player-select label {

@@ -80,11 +80,9 @@ export default function HomePage() {
     }),
   };
 
-  function setDefaults(data) {
-    if (data.pitchers?.length)
-      setPitcher({ value: data.pitchers[0].id, label: data.pitchers[0].label });
-    if (data.batters?.length)
-      setBatter({ value: data.batters[0].id, label: data.batters[0].label });
+  function setDefaults() {
+    setPitcher(null);
+    setBatter(null);
 
     setOuts(0);
     setOffScore(0);
@@ -126,6 +124,8 @@ export default function HomePage() {
     () => players.batters.map((b) => ({ value: b.id, label: b.label })),
     [players.batters],
   );
+
+  const canPlay = Boolean(pitcher && batter);
 
   //  clamp score and inning
   function clampScore(v) {
@@ -291,8 +291,11 @@ export default function HomePage() {
         </div>
 
         <button
-          className="play-button"
-          onClick={() =>
+          className={`play-button ${canPlay ? "" : "disabled"}`}
+          disabled={!canPlay}
+          onClick={() => {
+            if (!canPlay) return;
+
             navigate("/simulator", {
               state: {
                 pitcher,
@@ -303,8 +306,8 @@ export default function HomePage() {
                 inning,
                 bases,
               },
-            })
-          }
+            });
+          }}
         >
           Play Ball!
         </button>
