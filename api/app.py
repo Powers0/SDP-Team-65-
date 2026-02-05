@@ -19,14 +19,50 @@ SERVING_DF = load_serving_table(SERVING_TABLE_PATH)
 def api_players():
     names_p = ART["player_names"]["pitchers"]
     names_b = ART["player_names"]["batters"]
-    pitchers = [
-        {"id": int(x), "label": names_p.get(str(int(x)), str(int(x)))}
-        for x in ART["pitcher_le"].classes_
-    ]
-    batters = [
-        {"id": int(x), "label": names_b.get(str(int(x)), str(int(x)))}
-        for x in ART["batter_le"].classes_
-    ]
+
+    pitchers = []
+    for x in ART["pitcher_le"].classes_:
+        pid = str(int(x))
+        meta = names_p.get(pid)
+
+        if isinstance(meta, dict):
+            label = meta.get("name", pid)
+            bats = meta.get("bats")
+            throws = meta.get("throws")
+        else:
+            # backward-compat if meta is still a string
+            label = meta if isinstance(meta, str) else pid
+            bats = None
+            throws = None
+
+        pitchers.append({
+            "id": int(pid),
+            "label": label,     # string for react-select
+            "bats": bats,
+            "throws": throws,   # pitcher throwing hand is what you’ll likely display
+        })
+
+    batters = []
+    for x in ART["batter_le"].classes_:
+        bid = str(int(x))
+        meta = names_b.get(bid)
+
+        if isinstance(meta, dict):
+            label = meta.get("name", bid)
+            bats = meta.get("bats")      # batter batting hand is what you’ll likely display
+            throws = meta.get("throws")
+        else:
+            label = meta if isinstance(meta, str) else bid
+            bats = None
+            throws = None
+
+        batters.append({
+            "id": int(bid),
+            "label": label,    # string for react-select
+            "bats": bats,
+            "throws": throws,
+        })
+
     return jsonify({"pitchers": pitchers, "batters": batters})
 
 @app.post("/api/predict")

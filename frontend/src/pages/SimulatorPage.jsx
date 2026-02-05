@@ -15,7 +15,8 @@ export default function SimulatorPage() {
     );
   }
 
-  const { pitcher, batter, outs, offScore, defScore, inning, bases } = state;
+  const { pitcher, batter, outs, offScore, defScore, inning, bases, count } =
+    state;
 
   return (
     <div className="sim-page">
@@ -55,11 +56,44 @@ export default function SimulatorPage() {
               </div>
             </div>
 
-            <div className="scoreboard-row">
-              <div className="label">Coming soon</div>
+            <div className="scoreboard-row count">
+              <div className="label">Count</div>
+
+              <div className="count-display">
+                <div className="count-lights" aria-label="Count lights">
+                  <div className="count-row count-row-top">
+                    <span
+                      className={`count-dot ball ${count?.balls >= 1 ? "on" : ""}`}
+                    />
+                    <span
+                      className={`count-dot ball ${count?.balls >= 2 ? "on" : ""}`}
+                    />
+                    <span
+                      className={`count-dot ball ${count?.balls >= 3 ? "on" : ""}`}
+                    />
+                  </div>
+
+                  <div className="count-row count-row-bottom">
+                    <span
+                      className={`count-dot strike ${count?.strikes >= 1 ? "on" : ""}`}
+                    />
+                    <span
+                      className={`count-dot strike ${count?.strikes >= 2 ? "on" : ""}`}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="scoreboard-row">
+            <div className="scoreboard-row outs">
+              <div className="label">Outs</div>
+              <div className="outs-lights" aria-label="Outs">
+                <span className={`outs-light ${outs >= 1 ? "on" : ""}`} />
+                <span className={`outs-light ${outs >= 2 ? "on" : ""}`} />
+              </div>
+            </div>
+
+            <div className="scoreboard-row baserunners">
               <div className="label">BaseRunners</div>
               <div className="bases-diamond" aria-label="Baserunners">
                 <span className={`base base-3b ${bases?.on3 ? "on" : ""}`} />
