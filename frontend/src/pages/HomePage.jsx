@@ -81,6 +81,22 @@ export default function HomePage() {
   };
 
   function setDefaults() {
+    if (data.pitchers?.length)
+      setPitcher({
+        value: data.pitchers[0].id,
+        label: data.pitchers[0].label,
+        throws: data.pitchers[0].throws,
+        bats: data.pitchers[0].bats,
+      });
+
+    if (data.batters?.length)
+      setBatter({
+        value: data.batters[0].id,
+        label: data.batters[0].label,
+        bats: data.batters[0].bats,
+        throws: data.batters[0].throws,
+      });
+
     setPitcher(null);
     setBatter(null);
 
@@ -116,12 +132,22 @@ export default function HomePage() {
   }, [state]);
 
   const pitcherOptions = useMemo(
-    () => players.pitchers.map((p) => ({ value: p.id, label: p.label })),
+    () =>
+      players.pitchers.map((p) => ({
+        value: p.id,
+        label: p.label,
+        throws: p.throws,
+      })),
     [players.pitchers],
   );
 
   const batterOptions = useMemo(
-    () => players.batters.map((b) => ({ value: b.id, label: b.label })),
+    () =>
+      players.batters.map((b) => ({
+        value: b.id,
+        label: b.label,
+        bats: b.bats,
+      })),
     [players.batters],
   );
 

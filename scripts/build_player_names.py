@@ -63,11 +63,20 @@ def format_person_name(first: str, last: str) -> str:
 dfs = [
     pd.read_csv(
         os.path.join(CSV_DIR, f"statcast_full_{y}.csv"),
-        usecols=["pitcher", "batter", "stand", "p_throws", "game_pk", "at_bat_number"],
+        usecols=["pitcher", "batter", "stand", "p_throws",
+         "game_pk", "at_bat_number",
+         "sz_top", "sz_bot"],
     )
     for y in YEARS
 ]
 df = pd.concat(dfs, ignore_index=True).dropna(subset=["pitcher", "batter"])
+
+batter_zone_map = (
+    df.dropna(subset=["sz_top", "sz_bot"])
+      .groupby("batter")[["sz_top", "sz_bot"]]
+      .mean()
+      .to_dict("index")
+)
 
 df["pitcher"] = df["pitcher"].astype(int)
 df["batter"] = df["batter"].astype(int)
@@ -133,12 +142,16 @@ def to_map(ids, lookup_df: pd.DataFrame, bats_map=None, throws_map=None, pitch_c
         bats = bats.strip().upper()[:1] if isinstance(bats, str) else None
         throws = throws.strip().upper()[:1] if isinstance(throws, str) else None
 
+        zone = batter_zone_map.get(mlbam, {})
+
         m[str(mlbam)] = {
             "name": name,
             "bats": bats,
             "throws": throws,
             "pitch_count": int(pitch_ct.get(mlbam, 0)),
             "pa_count": int(pa_ct.get(mlbam, 0)),
+            "sz_top": float(zone.get("sz_top")) if zone.get("sz_top") is not None else None,
+            "sz_bot": float(zone.get("sz_bot")) if zone.get("sz_bot") is not None else None,
         }
 
     return m
