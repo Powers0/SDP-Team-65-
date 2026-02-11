@@ -5,7 +5,7 @@
    ------------------------- */
 :root {
   /* Zone width: tweak this ONE value (and it will stay responsive) */
-  --zoneW: clamp(260px, 28vw, 360px);
+  --zoneW: clamp(240px, 22vw, 320px);
 
   /* silhouette size */
   --silSize: 90px;
@@ -212,7 +212,7 @@
   min-height: 560px;
 
   display: grid;
-  grid-template-columns: 120px var(--zoneW) 180px; /* batter | zone | info */
+  grid-template-columns: 180px var(--zoneW) 180px; /* batter | zone | info */
   grid-template-rows: var(--silSize) 1fr auto auto auto; /* pitcher | spacer | main | result | buttons */
   column-gap: var(--gapX);
   row-gap: var(--gapY);
@@ -254,6 +254,25 @@
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.06);
   background: rgba(255, 255, 255, 0.01);
+}
+
+.zone-rect {
+  position: absolute;
+  z-index: 2;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+.pitch-dot {
+  position: absolute;
+  z-index: 3;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.25);
 }
 
 .pitch-info {
@@ -359,7 +378,7 @@
 
   .zone-stack {
     grid-template-columns: 120px var(--zoneW);
-    grid-template-rows: var(--sil) 1fr auto auto auto auto; /* add an extra row because info drops */
+    grid-template-rows: var(--silSize) 1fr auto auto auto auto;
   }
 
   .pitch-info {

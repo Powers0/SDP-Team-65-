@@ -132,6 +132,9 @@ export default function HomePage() {
         value: b.id,
         label: b.label,
         bats: b.bats,
+        throws: b.throws,
+        sz_top: b.sz_top,
+        sz_bot: b.sz_bot,
       })),
     [players.batters],
   );
