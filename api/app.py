@@ -20,47 +20,65 @@ def api_players():
     names_p = ART["player_names"]["pitchers"]
     names_b = ART["player_names"]["batters"]
 
+    # ---- tuning knobs ----
+    MIN_PITCH_COUNT = 200   # "real pitcher" threshold
+    MIN_PA_COUNT = 50       # "real batter" threshold
+    OHTANI_ID = 660271      # Shohei Ohtani MLBAM
+    # ----------------------
+
+    def get_meta(meta_source, pid_str):
+        meta = meta_source.get(pid_str)
+        if isinstance(meta, dict):
+            return meta
+        # backward compat if it's a string
+        if isinstance(meta, str):
+            return {"name": meta}
+        return {"name": pid_str}
+
+    def is_real_pitcher(pid_str):
+        mp = get_meta(names_p, pid_str)
+        # if missing, treat as 0
+        return (mp.get("pitch_count") or 0) >= MIN_PITCH_COUNT
+
+    def is_real_batter(pid_str):
+        mb = get_meta(names_b, pid_str)
+        return (mb.get("pa_count") or 0) >= MIN_PA_COUNT
+
     pitchers = []
     for x in ART["pitcher_le"].classes_:
         pid = str(int(x))
-        meta = names_p.get(pid)
+        mp = get_meta(names_p, pid)
 
-        if isinstance(meta, dict):
-            label = meta.get("name", pid)
-            bats = meta.get("bats")
-            throws = meta.get("throws")
-        else:
-            # backward-compat if meta is still a string
-            label = meta if isinstance(meta, str) else pid
-            bats = None
-            throws = None
+        # filter out "blowout cameo" pitchers, except Ohtani
+        if int(pid) != OHTANI_ID and not is_real_pitcher(pid):
+            continue
 
         pitchers.append({
             "id": int(pid),
-            "label": label,     # string for react-select
-            "bats": bats,
-            "throws": throws,   # pitcher throwing hand is what you’ll likely display
+            "label": mp.get("name", pid),
+            "bats": mp.get("bats"),
+            "throws": mp.get("throws"),
         })
 
     batters = []
     for x in ART["batter_le"].classes_:
         bid = str(int(x))
-        meta = names_b.get(bid)
+        mb = get_meta(names_b, bid)
 
-        if isinstance(meta, dict):
-            label = meta.get("name", bid)
-            bats = meta.get("bats")      # batter batting hand is what you’ll likely display
-            throws = meta.get("throws")
-        else:
-            label = meta if isinstance(meta, str) else bid
-            bats = None
-            throws = None
+        # filter out pitchers-as-batters (unless Ohtani)
+        if int(bid) != OHTANI_ID:
+            # require minimum PA to be a selectable batter
+            if not is_real_batter(bid):
+                continue
+            # if they are a real pitcher, exclude them from batters
+            if is_real_pitcher(bid):
+                continue
 
         batters.append({
             "id": int(bid),
-            "label": label,    # string for react-select
-            "bats": bats,
-            "throws": throws,
+            "label": mb.get("name", bid),
+            "bats": mb.get("bats"),
+            "throws": mb.get("throws"),
         })
 
     return jsonify({"pitchers": pitchers, "batters": batters})
