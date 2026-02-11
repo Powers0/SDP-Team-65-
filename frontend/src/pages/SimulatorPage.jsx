@@ -137,6 +137,11 @@ export default function SimulatorPage() {
     };
   }, [zoneSize.w, zoneSize.h, currentPitch]);
 
+  useEffect(() => {
+    console.log("batter keys:", batter ? Object.keys(batter) : null);
+    console.log("batter full:", batter);
+  }, [batter]);
+
   return (
     <div className="sim-page">
       <div className="sim-header">
