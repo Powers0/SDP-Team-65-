@@ -16,8 +16,7 @@ export default function SimulatorPage() {
     );
   }
 
-  const { pitcher, batter, outs, offScore, defScore, inning, bases, count } =
-    state;
+  const { pitcher, batter, outs, offScore, defScore, inning, bases } = state;
 
   // pitch history
   const [pitches, setPitches] = useState([]); // each pitch: { plate_x, plate_z, pitchType, result }
@@ -26,6 +25,28 @@ export default function SimulatorPage() {
 
   // current pitch (the one being viewed)
   const currentPitch = pitchIndex >= 0 ? pitches[pitchIndex] : null;
+
+  // Derive the displayed count from pitch history up to the pitch we're viewing.
+  // (When pitchIndex === -1, this will be 0-0.)
+  const displayCount = useMemo(() => {
+    const end = pitchIndex >= 0 ? pitchIndex + 1 : 0;
+    const seen = pitches.slice(0, end);
+
+    let balls = 0;
+    let strikes = 0;
+
+    for (const p of seen) {
+      const r = (p?.result ?? "").toLowerCase();
+      if (r.startsWith("ball")) balls += 1;
+      if (r.startsWith("strike")) strikes += 1;
+
+      // cap to what our lights show
+      if (balls > 3) balls = 3;
+      if (strikes > 2) strikes = 2;
+    }
+
+    return { balls, strikes };
+  }, [pitches, pitchIndex]);
 
   // demo generator (replace later with API call)
   function makeDemoPitch() {
@@ -161,22 +182,22 @@ export default function SimulatorPage() {
                 <div className="count-lights" aria-label="Count lights">
                   <div className="count-row count-row-top">
                     <span
-                      className={`count-dot ball ${count?.balls >= 1 ? "on" : ""}`}
+                      className={`count-dot ball ${displayCount.balls >= 1 ? "on" : ""}`}
                     />
                     <span
-                      className={`count-dot ball ${count?.balls >= 2 ? "on" : ""}`}
+                      className={`count-dot ball ${displayCount.balls >= 2 ? "on" : ""}`}
                     />
                     <span
-                      className={`count-dot ball ${count?.balls >= 3 ? "on" : ""}`}
+                      className={`count-dot ball ${displayCount.balls >= 3 ? "on" : ""}`}
                     />
                   </div>
 
                   <div className="count-row count-row-bottom">
                     <span
-                      className={`count-dot strike ${count?.strikes >= 1 ? "on" : ""}`}
+                      className={`count-dot strike ${displayCount.strikes >= 1 ? "on" : ""}`}
                     />
                     <span
-                      className={`count-dot strike ${count?.strikes >= 2 ? "on" : ""}`}
+                      className={`count-dot strike ${displayCount.strikes >= 2 ? "on" : ""}`}
                     />
                   </div>
                 </div>
@@ -273,9 +294,7 @@ export default function SimulatorPage() {
 
                     <button
                       className="btn ghost"
-                      onClick={() =>
-                        navigate("/", { state: { mode: "preserve" } })
-                      }
+                      onClick={() => navigate("/", { replace: true })}
                     >
                       Pick New At-Bat
                     </button>
@@ -295,9 +314,7 @@ export default function SimulatorPage() {
                     <div className="controls-bottom">
                       <button
                         className="btn ghost"
-                        onClick={() =>
-                          navigate("/", { state: { mode: "preserve" } })
-                        }
+                        onClick={() => navigate("/", { replace: true })}
                       >
                         Pick New At-Bat
                       </button>

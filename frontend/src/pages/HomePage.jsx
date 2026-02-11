@@ -80,23 +80,8 @@ export default function HomePage() {
     }),
   };
 
-  function setDefaults() {
-    if (data.pitchers?.length)
-      setPitcher({
-        value: data.pitchers[0].id,
-        label: data.pitchers[0].label,
-        throws: data.pitchers[0].throws,
-        bats: data.pitchers[0].bats,
-      });
-
-    if (data.batters?.length)
-      setBatter({
-        value: data.batters[0].id,
-        label: data.batters[0].label,
-        bats: data.batters[0].bats,
-        throws: data.batters[0].throws,
-      });
-
+  function setDefaults(_data) {
+    // Reset to a fresh Home page (no preserved selections)
     setPitcher(null);
     setBatter(null);
 
