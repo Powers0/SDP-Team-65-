@@ -79,6 +79,8 @@ def api_players():
             "label": mb.get("name", bid),
             "bats": mb.get("bats"),
             "throws": mb.get("throws"),
+            "sz_top": mb.get("sz_top"),
+            "sz_bot": mb.get("sz_bot"),
         })
 
     return jsonify({"pitchers": pitchers, "batters": batters})
