@@ -1,3 +1,20 @@
+/* SimulatorPage.css */
+
+/* -------------------------
+   TUNING KNOBS (change here)
+   ------------------------- */
+:root {
+  /* Zone width: tweak this ONE value (and it will stay responsive) */
+  --zoneW: clamp(260px, 28vw, 360px);
+
+  /* silhouette size */
+  --silSize: 90px;
+
+  /* layout gaps */
+  --gapX: 16px;
+  --gapY: 12px;
+}
+
 .sim-header {
   padding: 16px 24px 8px;
 }
@@ -11,7 +28,6 @@
   background: none;
   border: none;
   padding: 0;
-
   font-size: 32px;
   font-weight: 700;
   cursor: pointer;
@@ -38,9 +54,10 @@
   display: grid;
   grid-template-columns: 1fr 2fr 1fr;
   gap: 24px;
-  align-items: start;
+  align-items: stretch;
 }
 
+/* shared panel */
 .panel {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 14px;
@@ -48,6 +65,7 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
+/* left/right columns */
 .sim-right {
   display: flex;
   flex-direction: column;
@@ -95,6 +113,7 @@
   margin-left: 6px;
 }
 
+/* COUNT */
 .scoreboard-row.count .label {
   margin-bottom: 8px;
 }
@@ -114,7 +133,7 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #2b2b2b; /* off */
+  background: #2b2b2b;
   border: 1px solid #444;
   transition: all 0.2s ease;
   box-sizing: border-box;
@@ -122,12 +141,12 @@
 
 .count-lights {
   display: grid;
-  row-gap: 6px; /* vertical gap between the two rows */
+  row-gap: 6px;
 }
 
 .count-row {
   display: grid;
-  column-gap: 8px; /* horizontal gap between dots */
+  column-gap: 8px;
   align-items: center;
 }
 
@@ -150,7 +169,6 @@
   transform: translate(3px, 3px);
 }
 
-/* balls on: green */
 .count-dot.ball.on {
   background: radial-gradient(circle at 30% 30%, #8dff9a, #1f8a2a 70%);
   border-color: rgba(141, 255, 154, 0.9);
@@ -159,7 +177,6 @@
     0 0 16px rgba(50, 255, 120, 0.25);
 }
 
-/* strikes on: amber */
 .count-dot.strike.on {
   background: radial-gradient(circle at 30% 30%, #ffe08a, #b88300 70%);
   border-color: rgba(255, 224, 138, 0.95);
@@ -168,6 +185,7 @@
     0 0 16px rgba(255, 200, 60, 0.25);
 }
 
+/* OUTS */
 .scoreboard-row.outs .label {
   margin-bottom: 8px;
 }
@@ -178,4 +196,220 @@
   box-shadow:
     0 0 8px rgba(255, 0, 0, 0.75),
     0 0 16px rgba(255, 0, 0, 0.45);
+}
+
+.sim-center {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.zone-stack {
+  width: min(900px, 100%);
+  height: calc(100vh - 170px);
+  max-height: 820px;
+  min-height: 560px;
+
+  display: grid;
+  grid-template-columns: 120px var(--zoneW) 180px; /* batter | zone | info */
+  grid-template-rows: var(--silSize) 1fr auto auto auto; /* pitcher | spacer | main | result | buttons */
+  column-gap: var(--gapX);
+  row-gap: var(--gapY);
+  align-content: stretch;
+}
+
+.pitcher-slot {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: center;
+
+  width: var(--silSize);
+  height: var(--silSize);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.batter-slot {
+  grid-column: 1;
+  grid-row: 3;
+  justify-self: end;
+  align-self: end;
+
+  width: var(--silSize);
+  height: var(--silSize);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.zone-world {
+  grid-column: 2;
+  grid-row: 3;
+  align-self: end;
+
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  position: relative;
+
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.pitch-info {
+  grid-column: 3;
+  grid-row: 3;
+  align-self: end;
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.info-label {
+  font-size: 12px;
+  opacity: 0.7;
+}
+.info-value {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pitch-result {
+  grid-column: 2;
+  grid-row: 4;
+  justify-self: center;
+
+  width: 100%;
+  text-align: center;
+
+  min-height: 18px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  opacity: 0.9;
+}
+
+.controls {
+  grid-column: 2;
+  grid-row: 5;
+  justify-self: center;
+
+  width: min(var(--zoneW), 520px);
+}
+
+/* keeps button layouts centered and spaced for both modes */
+.controls-inner {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.controls-p0 {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.controls-p1 {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.controls-top {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.controls-bottom {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* optional: make the two top-row buttons feel consistent */
+.controls-top .btn {
+  min-width: 140px;
+}
+
+/* small screens: stack columns */
+@media (max-width: 1024px) {
+  .sim-main {
+    grid-template-columns: 1fr;
+  }
+
+  .zone-stack {
+    grid-template-columns: 120px var(--zoneW);
+    grid-template-rows: var(--sil) 1fr auto auto auto auto; /* add an extra row because info drops */
+  }
+
+  .pitch-info {
+    grid-column: 1 / -1;
+    grid-row: 4;
+    justify-self: center;
+    width: min(420px, 100%);
+  }
+
+  .pitch-result {
+    grid-column: 1 / -1;
+    grid-row: 5;
+    width: min(520px, 100%);
+  }
+
+  .controls {
+    grid-column: 1 / -1;
+    grid-row: 6;
+    width: min(520px, 100%);
+  }
+}
+
+/* buttons */
+.btn {
+  padding: 12px 18px;
+  border-radius: 999px; /* fully rounded */
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: #1f1f1f;
+  color: #f5f5f5;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn:hover {
+  background: #2a2a2a;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.btn.primary {
+  background: #2b2b2b;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+.btn.primary:hover {
+  background: #3a3a3a;
+}
+
+.btn.ghost {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.2);
 }
