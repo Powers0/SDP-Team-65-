@@ -7,16 +7,16 @@ SEQ_LEN = 5
 TEST_SIZE = 0.15
 RANDOM_SEED = 42
 
-CSV_DIR = "../csv data/"
+CSV_DIR = "../csv data"
 ARTIFACTS = "artifacts/"
 SHARED_DIR = "../artifacts/shared/"
 
 TYPE_PROBS_PATH = "../Pitch Type Prediction/artifacts/pitch_type_probs.npy"
 PITCHLOC_ART_DIR = "../Pitch Location Prediction/artifacts/"  # contains scaler_X.pkl, scaler_Y.pkl, features.pkl
 
-YEARS = [2021, 2022, 2023, 2024]
+YEARS = [2021]# 2022, 2023, 2024]
 
-# A reasonable Statcast swing definition (you can tweak later)
+# A reasonable Statcast swing definition 
 SWING_DESCRIPTIONS = {
     "swinging_strike",
     "swinging_strike_blocked",
@@ -31,7 +31,7 @@ SWING_DESCRIPTIONS = {
 def load_statcast():
     dfs = []
     for y in YEARS:
-        path = f"{CSV_DIR}/statcast_full_{y}.csv"
+        path = f"statcast_full_{y}.csv"
         print("Loading:", path)
         dfs.append(pd.read_csv(path))
     return pd.concat(dfs, ignore_index=True)
@@ -111,8 +111,8 @@ def build_sequences(df, X, swing, pitch_type_probs, scaler_X_pitchloc):
             idx_pt += 1
 
     X_seq = np.array(seq_X)             # (N, seq_len, num_features_unscaled)
-    P_seq = np.array(seq_p)             # (N,)
-    B_seq = np.array(seq_b)             # (N,)
+    P_seq = np.array(seq_p, dtype="int32")             # (N,)
+    B_seq = np.array(seq_b, dtype="int32")             # (N,)
     PT_seq = np.array(seq_type)         # (N, pitch_type_dim)
     y = np.array(y_swing).astype(int)   # (N,)
 
