@@ -4,11 +4,11 @@ from tensorflow.keras.models import Model
 def build_swingtake_model(pitch_type_dim: int, extra_dim: int):
     """
     Inputs:
-      - pitchtype_input: (pitch_type_dim,)  e.g., 7-dim softmax
-      - extra_input:     (extra_dim,)       e.g., predicted x,z, dist, strike_prob
+      - pitchtype_input: (pitch_type_dim)  7-dim 
+      - extra_input:     (extra_dim)       predicted x,z, dist, strike_prob
 
     Output:
-      - sigmoid: P(swing)
+      - P(swing)
     """
     pitchtype_input = Input(shape=(pitch_type_dim,), name="pitchtype_probs")
     extra_input = Input(shape=(extra_dim,), name="extra_features")
