@@ -7,7 +7,7 @@ from tensorflow.keras.models import load_model
 
 from swingtake_architecture import build_swingtake_model
 
-ART = "artifacts/"
+ART_PATH = "artifacts/"
 
 
 PITCHLOC_ART_DIR = "../Pitch Location Prediction/artifacts/"
@@ -33,22 +33,37 @@ def engineered_features_from_loc(loc_xy):
 
 if __name__ == "__main__":
     print("Loading Swing/Take dataset artifacts...")
-    X_train = np.load(ART + "X_train.npy")
-    X_test  = np.load(ART + "X_test.npy")
-    P_train = np.load(ART + "P_train.npy")
-    P_test  = np.load(ART + "P_test.npy")
-    B_train = np.load(ART + "B_train.npy")
-    B_test  = np.load(ART + "B_test.npy")
-    PT_train = np.load(ART + "PT_train.npy")
-    PT_test  = np.load(ART + "PT_test.npy")
-    y_train = np.load(ART + "y_train.npy")
-    y_test  = np.load(ART + "y_test.npy")
+    X_train = np.load(ART_PATH + "X_train.npy")
+    X_test  = np.load(ART_PATH + "X_test.npy")
+    P_train = np.load(ART_PATH + "P_train.npy")
+    P_test  = np.load(ART_PATH + "P_test.npy")
+    B_train = np.load(ART_PATH + "B_train.npy")
+    B_test  = np.load(ART_PATH + "B_test.npy")
+    PT_train = np.load(ART_PATH + "PT_train.npy")
+    PT_test  = np.load(ART_PATH + "PT_test.npy")
+    y_train = np.load(ART_PATH + "y_train.npy")
+    y_test  = np.load(ART_PATH + "y_test.npy")
 
     pitchtype_dim = PT_train.shape[1]
 
     print("Loading pitch-location model + scaler_Y...")
     loc_model = load_model(PITCHLOC_MODEL_PATH)
     scaler_Y = pickle.load(open(PITCHLOC_ART_DIR + "scaler_Y.pkl", "rb"))
+
+
+    """SHARED_DIR = "artifacts/"  # adjust if needed
+    pitcher_le = pickle.load(open(SHARED_DIR + "pitcher_le.pkl", "rb"))
+    batter_le  = pickle.load(open(SHARED_DIR + "batter_le.pkl", "rb"))
+
+    # If they look like raw MLBAM ids, encode them
+    if P_train.max() >= loc_model.get_layer("embedding").input_dim:
+        P_train = pitcher_le.transform(P_train.astype(int)).astype("int32")
+        P_test  = pitcher_le.transform(P_test.astype(int)).astype("int32")
+
+    if B_train.max() >= loc_model.get_layer("embedding_1").input_dim:
+        B_train = batter_le.transform(B_train.astype(int)).astype("int32")
+        B_test  = batter_le.transform(B_test.astype(int)).astype("int32")"""
+
 
     # Get predicted locations from pitch-location model
     print("Predicting locations (train)...")
