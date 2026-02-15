@@ -13,6 +13,8 @@
   /* layout gaps */
   --gapX: 16px;
   --gapY: 12px;
+
+  --pitcherToZoneGap: 48px;
 }
 
 .sim-header {
@@ -213,7 +215,9 @@
 
   display: grid;
   grid-template-columns: 180px var(--zoneW) 180px; /* batter | zone | info */
-  grid-template-rows: var(--silSize) 1fr auto auto auto; /* pitcher | spacer | main | result | buttons */
+  grid-template-rows:
+    var(--silSize) minmax(var(--pitcherToZoneGap), 1fr)
+    auto auto auto;
   column-gap: var(--gapX);
   row-gap: var(--gapY);
   align-content: stretch;
@@ -228,6 +232,7 @@
   height: var(--silSize);
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.05);
+  margin-bottom: 12px;
 }
 
 .batter-slot {
