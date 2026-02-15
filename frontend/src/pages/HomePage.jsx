@@ -80,7 +80,8 @@ export default function HomePage() {
     }),
   };
 
-  function setDefaults() {
+  function setDefaults(_data) {
+    // Reset to a fresh Home page (no preserved selections)
     setPitcher(null);
     setBatter(null);
 
@@ -116,12 +117,25 @@ export default function HomePage() {
   }, [state]);
 
   const pitcherOptions = useMemo(
-    () => players.pitchers.map((p) => ({ value: p.id, label: p.label })),
+    () =>
+      players.pitchers.map((p) => ({
+        value: p.id,
+        label: p.label,
+        throws: p.throws,
+      })),
     [players.pitchers],
   );
 
   const batterOptions = useMemo(
-    () => players.batters.map((b) => ({ value: b.id, label: b.label })),
+    () =>
+      players.batters.map((b) => ({
+        value: b.id,
+        label: b.label,
+        bats: b.bats,
+        throws: b.throws,
+        sz_top: b.sz_top,
+        sz_bot: b.sz_bot,
+      })),
     [players.batters],
   );
 
