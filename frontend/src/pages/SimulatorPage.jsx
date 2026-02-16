@@ -2,6 +2,31 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "../SimulatorPage.css";
 
+// Pitch type code -> human readable label
+const PITCH_TYPE_NAMES = {
+  FF: "4-Seam Fastball",
+  FT: "2-Seam Fastball",
+  SI: "Sinker",
+  FC: "Cutter",
+  SL: "Slider",
+  CU: "Curveball",
+  KC: "Knuckle Curve",
+  CH: "Changeup",
+  FS: "Splitter",
+  SF: "Split-Finger",
+  FO: "Forkball",
+  SC: "Screwball",
+  KN: "Knuckleball",
+  EP: "Eephus",
+  ST: "Sweeper",
+};
+
+function prettyPitchType(code) {
+  if (!code) return "__";
+  const c = String(code).toUpperCase().trim();
+  return PITCH_TYPE_NAMES[c] ?? c;
+}
+
 export default function SimulatorPage() {
   const { state } = useLocation();
   const navigate = useNavigate();
@@ -262,16 +287,7 @@ export default function SimulatorPage() {
               <div className="info-row">
                 <span className="info-label">Pitch Type</span>
                 <span className="info-value">
-                  {currentPitch?.pitchType ?? "__"}
-                </span>
-              </div>
-
-              <div className="info-row">
-                <span className="info-label">Location</span>
-                <span className="info-value">
-                  {currentPitch
-                    ? `${currentPitch.plate_x.toFixed(2)}, ${currentPitch.plate_z.toFixed(2)}`
-                    : "__"}
+                  {prettyPitchType(currentPitch?.pitchType)}
                 </span>
               </div>
 
