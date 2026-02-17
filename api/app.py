@@ -38,6 +38,7 @@ CORS(
 print("Loading artifacts/models...")
 ART = load_all(PT_DIR, LOC_DIR, SHARED_DIR)
 
+
 print("Loading serving table...")
 SERVING_DF = load_serving_table(SERVING_TABLE_PATH)
 
