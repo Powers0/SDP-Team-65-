@@ -8,22 +8,26 @@ from sklearn.metrics import classification_report, confusion_matrix
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.callbacks import EarlyStopping
 from pitchtype_architecture import build_pitch_model
+from pathlib import Path
 
 
-ARTIFACTS = "artifacts/"
+ # Make artifacts path relative to this script (stable across machines)
+HERE = Path(__file__).resolve().parent
+ARTIFACTS_DIR = HERE / "artifacts"
+ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------
 # Load dataset artifacts
 # ---------------------------------------------------
 print("Loading processed datasets...")
 
-X = np.load(ARTIFACTS + "processed_X.npy")
-Y = np.load(ARTIFACTS + "processed_Y.npy")
-P = np.load(ARTIFACTS + "processed_pitcher.npy")
-B = np.load(ARTIFACTS + "processed_batter.npy")
+X = np.load(ARTIFACTS_DIR / "processed_X.npy")
+Y = np.load(ARTIFACTS_DIR / "processed_Y.npy")
+P = np.load(ARTIFACTS_DIR / "processed_pitcher.npy")
+B = np.load(ARTIFACTS_DIR / "processed_batter.npy")
 
-le_pitch = pickle.load(open(ARTIFACTS + "label_encoder.pkl", "rb"))
-features_list = pickle.load(open(ARTIFACTS + "features.pkl", "rb"))
+le_pitch = pickle.load(open(ARTIFACTS_DIR / "label_encoder.pkl", "rb"))
+features_list = pickle.load(open(ARTIFACTS_DIR / "features.pkl", "rb"))
 
 num_features = len(features_list)
 num_classes = len(le_pitch.classes_)
@@ -115,12 +119,12 @@ plt.show()
 print("\nSaving pitch type probabilities for location model...")
 
 Y_pred_probs_full = model.predict([X, P, B], batch_size=256)
-np.save(ARTIFACTS + "pitch_type_probs.npy", Y_pred_probs_full)
+np.save(ARTIFACTS_DIR / "pitch_type_probs.npy", Y_pred_probs_full)
 
-print("Saved:", ARTIFACTS + "pitch_type_probs.npy")
+print("Saved:", ARTIFACTS_DIR / "pitch_type_probs.npy")
 
 # ---------------------------------------------------
 # Save trained model
 # ---------------------------------------------------
-model.save("pitchtype_model.keras")
-print("Saved model: pitchtype_model.keras")
+model.save(ARTIFACTS_DIR / "pitchtype_model.keras")
+print("Saved model:", ARTIFACTS_DIR / "pitchtype_model.keras")
