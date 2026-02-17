@@ -43,9 +43,24 @@ export default function SimulatorPage() {
 
   const { pitcher, batter, outs, offScore, defScore, inning, bases } = state;
 
+  useEffect(() => {
+    const pitcherId =
+      pitcher?.id ?? pitcher?.value ?? pitcher?.mlbam ?? pitcher?.mlbam_id;
+    const batterId =
+      batter?.id ?? batter?.value ?? batter?.mlbam ?? batter?.mlbam_id;
+
+    console.groupCollapsed("[SIM] incoming state");
+    console.log("pitcher:", pitcher);
+    console.log("batter:", batter);
+    console.log("pitcherId:", pitcherId, "batterId:", batterId);
+    console.log("sz_bot/top:", batter?.sz_bot, batter?.sz_top);
+    console.groupEnd();
+  }, [pitcher, batter]);
+
   // pitch history
   const [pitches, setPitches] = useState([]); // each pitch: { plate_x, plate_z, pitchType, result }
   const [pitchIndex, setPitchIndex] = useState(-1); // -1 = "before pitch 1"
+  const [contextLabel, setContextLabel] = useState(null); // e.g. "matchup", "pitcher+global"
   const pitchNum = pitchIndex >= 0 ? pitchIndex + 1 : "__";
 
   // current pitch (the one being viewed)
@@ -73,6 +88,50 @@ export default function SimulatorPage() {
     return { balls, strikes };
   }, [pitches, pitchIndex]);
 
+  // --- MODEL API (Flask) ---
+  // If your Flask server is running on a different host/port, update this.
+
+  async function fetchModelPitch() {
+    // Try to extract MLBAM ids from whatever shape you're currently passing.
+    const pitcherId =
+      pitcher?.id ?? pitcher?.value ?? pitcher?.mlbam ?? pitcher?.mlbam_id;
+    const batterId =
+      batter?.id ?? batter?.value ?? batter?.mlbam ?? batter?.mlbam_id;
+
+    if (!pitcherId || !batterId) {
+      console.warn("Missing pitcher/batter id for /api/predict", {
+        pitcher,
+        batter,
+      });
+      return null;
+    }
+
+    try {
+      const res = await fetch("/api/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pitcher_mlbam: Number(pitcherId),
+          batter_mlbam: Number(batterId),
+        }),
+      });
+
+      const json = await res.json();
+      console.log("Predict API response:", json);
+      console.log("Predict API keys:", json ? Object.keys(json) : null);
+
+      if (!res.ok) {
+        console.warn("/api/predict returned non-OK", res.status, json);
+        return null;
+      }
+
+      return json;
+    } catch (e) {
+      console.warn("/api/predict fetch failed", e);
+      return null;
+    }
+  }
+
   // demo generator (replace later with API call)
   function makeDemoPitch() {
     return {
@@ -83,15 +142,54 @@ export default function SimulatorPage() {
     };
   }
 
-  function onNextPitch() {
+  async function onNextPitch() {
     // if we're not at the end of history, just move forward
     if (pitchIndex < pitches.length - 1) {
       setPitchIndex(pitchIndex + 1);
       return;
     }
 
-    // otherwise generate a new pitch and append
-    const p = makeDemoPitch();
+    // Try model first (and log the returned JSON/keys)
+    const api = await fetchModelPitch();
+
+    if (api && api.context_label) {
+      setContextLabel(api.context_label);
+    }
+
+    // Map API -> our pitch shape (use fallbacks so nothing breaks while you inspect keys)
+    const mapped = api
+      ? {
+          plate_x:
+            api.plate_x ??
+            api.plateX ??
+            api.px ??
+            api.x ??
+            api.location?.plate_x ??
+            api.location?.x ??
+            0,
+          plate_z:
+            api.plate_z ??
+            api.plateZ ??
+            api.pz ??
+            api.z ??
+            api.location?.plate_z ??
+            api.location?.z ??
+            2.6,
+          pitchType:
+            api.pitchType ??
+            api.pitch_type ??
+            api.pitch_type_code ??
+            api.pitch ??
+            api.pt ??
+            "FF",
+          result:
+            api.result ?? api.call ?? api.ball_strike ?? api.outcome ?? "",
+        }
+      : null;
+
+    // If model didn't return something usable yet, fall back to demo
+    const p = mapped ?? makeDemoPitch();
+
     setPitches((prev) => [...prev, p]);
     setPitchIndex((prev) => prev + 1);
   }
