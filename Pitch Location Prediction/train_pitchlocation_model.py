@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from tensorflow.keras.callbacks import EarlyStopping
 from pitchlocation_architecture import build_pitch_location_model
+import os
 
 ART = "artifacts/"
 
@@ -102,5 +103,6 @@ plt.title("Pitch Location True vs Predicted")
 plt.tight_layout()
 plt.show()
 
-model.save("pitch_location_model.keras")
-print("\nSaved model: pitch_location_model.keras")
+out_path = os.path.join(ART, "pitch_location_model.keras")
+model.save(out_path)
+print(f"\nSaved model: {out_path}")

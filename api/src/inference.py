@@ -171,6 +171,18 @@ def predict_next(
 
     # Pitch type prediction
     pt_probs = pitchtype_model.predict([Xpt, p_ids, b_ids], verbose=0)[0]
+    allowed = artifacts.get("repertoire_map", {}).get(pitcher_mlbam)
+
+    if allowed:
+        mask = np.array([
+            1.0 if cls in allowed else 0.0
+            for cls in pt_label_enc.classes_
+        ], dtype=np.float32)
+
+        pt_probs = pt_probs * mask
+
+        if pt_probs.sum() > 0:
+            pt_probs = pt_probs / pt_probs.sum()
     if sample_pitch_type:
         # Stochastic draw (makes repeated clicks less deterministic)
         pt_idx = int(np.random.choice(len(pt_probs), p=pt_probs / np.sum(pt_probs)))
