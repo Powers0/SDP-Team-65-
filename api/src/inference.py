@@ -2,7 +2,58 @@ import numpy as np
 
 # Serving table feature columns for previous pitch one-hot usually look like:
 #   previous_pitch_FF, previous_pitch_SL, ..., previous_pitch_None
+
 _PREV_PITCH_PREFIX = "previous_pitch_"
+
+# --- Location noise sampling (game-feel realism) ---
+# Std devs are in FEET on the Statcast plate_x / plate_z axes.
+# Tune these to taste.
+PITCH_TYPE_LOC_NOISE = {
+    # Fastballs / hard stuff (tighter)
+    "FF": (0.18, 0.22),
+    "FT": (0.19, 0.23),
+    "SI": (0.20, 0.24),
+    "FC": (0.20, 0.24),
+    "FS": (0.20, 0.24),
+    "SF": (0.20, 0.24),
+
+    # Sliders / sweepers (a bit wider)
+    "SL": (0.24, 0.28),
+    "ST": (0.26, 0.30),
+
+    # Curves / changeups (widest)
+    "CU": (0.28, 0.34),
+    "KC": (0.28, 0.34),
+    "CH": (0.26, 0.32),
+
+    # Knuckleball / gimmicks (very wide)
+    "KN": (0.35, 0.45),
+    "EP": (0.32, 0.40),
+}
+
+DEFAULT_LOC_NOISE = (0.22, 0.28)
+
+# Simple physical-ish bounds so noise doesn't go insane.
+# These match your frontend world bounds reasonably well.
+PLATE_X_BOUNDS = (-2.0, 2.0)
+PLATE_Z_BOUNDS = (0.5, 4.5)
+
+def _sample_location(mean_x: float, mean_z: float, pitch_type: str, rng: np.random.Generator | None = None):
+    """Sample a plausible location around the model's mean prediction.
+
+    Returns: (x, z)
+    """
+    rng = rng or np.random.default_rng()
+    code = (pitch_type or "").upper().strip()
+    sx, sz = PITCH_TYPE_LOC_NOISE.get(code, DEFAULT_LOC_NOISE)
+
+    x = float(mean_x + rng.normal(0.0, sx))
+    z = float(mean_z + rng.normal(0.0, sz))
+
+    # clamp
+    x = float(np.clip(x, PLATE_X_BOUNDS[0], PLATE_X_BOUNDS[1]))
+    z = float(np.clip(z, PLATE_Z_BOUNDS[0], PLATE_Z_BOUNDS[1]))
+    return x, z
 
 
 def _apply_user_context(serving_window, user_context: dict):
@@ -78,6 +129,8 @@ def predict_next(
     batter_mlbam: int,
     user_context: dict | None = None,
     sample_pitch_type: bool = False,
+    sample_location: bool = True,
+    rng_seed: int | None = None,
 ):
     pt_features  = artifacts["pt_features"]
     pt_scaler_X  = artifacts["pt_scaler_X"]
@@ -143,6 +196,16 @@ def predict_next(
     )
     loc_pred = loc_scaler_Y.inverse_transform(loc_pred_scaled)[0]
 
+    # Location output from model is a mean prediction.
+    mean_x = float(loc_pred[0])
+    mean_z = float(loc_pred[1])
+
+    if sample_location:
+        rng = np.random.default_rng(rng_seed)
+        samp_x, samp_z = _sample_location(mean_x, mean_z, str(pt_pred), rng=rng)
+    else:
+        samp_x, samp_z = mean_x, mean_z
+
     # Context for UI (last pitch state is the “current” state)
     last = serving_window.iloc[-1]
     context = {}
@@ -161,6 +224,7 @@ def predict_next(
         "pitch_type_idx": int(pt_idx),
         "pitch_type_prob": float(pt_probs[pt_idx]),
         "pitch_type_probs": {str(artifacts["pt_label_enc"].classes_[i]): float(pt_probs[i]) for i in range(len(pt_probs))},
-        "location": {"plate_x": float(loc_pred[0]), "plate_z": float(loc_pred[1])},
+        "location": {"plate_x": float(samp_x), "plate_z": float(samp_z)},
+        "location_mean": {"plate_x": float(mean_x), "plate_z": float(mean_z)},
         "context": context
     }
