@@ -8,7 +8,9 @@ def ensure_columns(df_sub, required_cols):
 
 def predict_next(serving_window,
                  artifacts,
-                 seq_len: int):
+                 seq_len: int,
+                 pitcher_mlbam: int,
+                 batter_mlbam: int):
     pt_features  = artifacts["pt_features"]
     pt_scaler_X  = artifacts["pt_scaler_X"]
     pt_label_enc = artifacts["pt_label_enc"]
@@ -27,9 +29,19 @@ def predict_next(serving_window,
     Xpt  = pt_scaler_X.transform(sub_pt.values)[np.newaxis, :, :]
     Xloc = loc_scaler_X.transform(sub_loc.values)[np.newaxis, :, :]
 
-    # Embedding IDs from serving table (already stable from shared encoders)
-    p_idx = int(serving_window["pitcher_embed"].iloc[-1])
-    b_idx = int(serving_window["batter_embed"].iloc[-1])
+    # Embedding IDs from encoders (ALWAYS use selected players)
+    p_le = artifacts["pitcher_le"]
+    b_le = artifacts["batter_le"]
+
+    try:
+        p_idx = int(p_le.transform([pitcher_mlbam])[0])
+    except Exception:
+        p_idx = 0  # fallback index
+
+    try:
+        b_idx = int(b_le.transform([batter_mlbam])[0])
+    except Exception:
+        b_idx = 0  # fallback index
 
     p_ids = np.full((1, seq_len), p_idx, dtype=np.int32)
     b_ids = np.full((1, seq_len), b_idx, dtype=np.int32)
@@ -50,7 +62,13 @@ def predict_next(serving_window,
     context = {}
     for k in ["game_date","inning","balls","strikes","outs_when_up","on_1b","on_2b","on_3b","score_diff"]:
         if k in last.index:
-            context[k] = int(last[k]) if str(last[k]).isdigit() else last[k]
+            v = last[k]
+
+            # convert numpy scalars to python scalars (jsonify-safe)
+            if isinstance(v, (np.integer, np.floating)):
+                v = v.item()
+
+            context[k] = v
 
     return {
         "pitch_type": str(pt_pred),

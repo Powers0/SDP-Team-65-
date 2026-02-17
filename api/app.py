@@ -3,11 +3,37 @@ from flask_cors import CORS
 
 from src.config import SEQ_LEN, PT_DIR, LOC_DIR, SHARED_DIR, SERVING_TABLE_PATH
 from src.artifacts import load_all
-from src.serving_data import load_serving_table, get_latest_window
+from src.serving_data import load_serving_table, get_window_with_fallback
 from src.inference import predict_next
 
+import numpy as np
+
+def to_py(x):
+    # numpy scalars
+    if isinstance(x, (np.integer,)):
+        return int(x)
+    if isinstance(x, (np.floating,)):
+        return float(x)
+    if isinstance(x, (np.bool_,)):
+        return bool(x)
+
+    # numpy arrays
+    if isinstance(x, np.ndarray):
+        return x.tolist()
+
+    # dict/list recursion
+    if isinstance(x, dict):
+        return {k: to_py(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [to_py(v) for v in x]
+
+    return x
+
 app = Flask(__name__)
-CORS(app)  # allow React dev server to call the API
+CORS(
+    app,
+    resources={r"/api/*": {"origins": "http://localhost:5173"}},
+)
 
 print("Loading artifacts/models...")
 ART = load_all(PT_DIR, LOC_DIR, SHARED_DIR)
@@ -91,9 +117,17 @@ def api_predict():
     pitcher_mlbam = int(payload["pitcher_mlbam"])
     batter_mlbam  = int(payload["batter_mlbam"])
 
-    window = get_latest_window(SERVING_DF, pitcher_mlbam, batter_mlbam, SEQ_LEN)
-    result = predict_next(window, ART, SEQ_LEN)
-    return jsonify(result)
+    window, context_label = get_window_with_fallback(
+        SERVING_DF, pitcher_mlbam, batter_mlbam, SEQ_LEN
+    )
+
+    result = predict_next(window, ART, SEQ_LEN, pitcher_mlbam, batter_mlbam)
+
+    out = to_py(result)
+    out["context_label"] = context_label
+    
+
+    return jsonify(out)
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(host="127.0.0.1", port=5000, debug=True)
