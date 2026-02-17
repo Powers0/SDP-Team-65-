@@ -5,7 +5,7 @@ import os
 
 def load_all(PT_DIR, LOC_DIR, SHARED_DIR):
     pitchtype_model = load_model(PT_DIR + "pitchtype_model.keras")
-    location_model  = load_model(LOC_DIR + "pitch_location_model.keras")
+    location_model  = load_model(LOC_DIR + "pitch_location_model.keras", compile=False)
 
     pt_features  = pickle.load(open(PT_DIR + "features.pkl", "rb"))
     pt_scaler_X  = pickle.load(open(PT_DIR + "scaler.pkl", "rb"))

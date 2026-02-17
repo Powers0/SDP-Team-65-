@@ -35,8 +35,124 @@ DEFAULT_LOC_NOISE = (0.22, 0.28)
 
 # Simple physical-ish bounds so noise doesn't go insane.
 # These match your frontend world bounds reasonably well.
+
 PLATE_X_BOUNDS = (-2.0, 2.0)
 PLATE_Z_BOUNDS = (0.5, 4.5)
+
+
+# ---- Targeting bias helpers ----
+
+def _push_sign(x: float, rng: np.random.Generator) -> float:
+    """Choose a stable-ish direction to push horizontally toward an edge.
+    If x already has a sign, keep it; otherwise pick a random side."""
+    if x > 1e-6:
+        return 1.0
+    if x < -1e-6:
+        return -1.0
+    return 1.0 if rng.random() < 0.5 else -1.0
+
+
+def apply_targeting_bias(
+    mean_x: float,
+    mean_z: float,
+    pitch_type: str,
+    balls: int | None,
+    strikes: int | None,
+    rng: np.random.Generator,
+) -> tuple[float, float]:
+    """Heuristic 'intent' adjustment.
+
+    Your location model tends to regress toward average/strike-ish means.
+    This nudges the *mean* based on count + pitch type to get more realistic
+    zone-edge and chase behavior.
+
+    Returns: (biased_mean_x, biased_mean_z)
+    """
+    code = (pitch_type or "").upper().strip()
+
+    # Default targets
+    Z_CENTER = 2.5
+
+    # Pitch-type bias strengths (feet)
+    # (Breaking balls tend to live closer to edges / lower.)
+    PT_EDGE = {
+        "FF": 0.05,
+        "FT": 0.06,
+        "SI": 0.07,
+        "FC": 0.07,
+        "FS": 0.07,
+        "SF": 0.07,
+        "CH": 0.08,
+        "SL": 0.10,
+        "ST": 0.10,
+        "CU": 0.11,
+        "KC": 0.11,
+    }
+    PT_DROP_2STR = {
+        # extra vertical drop with 2 strikes
+        "FF": 0.12,
+        "FT": 0.12,
+        "SI": 0.13,
+        "FC": 0.13,
+        "FS": 0.13,
+        "SF": 0.13,
+        "CH": 0.16,
+        "SL": 0.20,
+        "ST": 0.20,
+        "CU": 0.24,
+        "KC": 0.24,
+    }
+
+    # Some pitchers intentionally "climb the ladder" with hard stuff on 2 strikes.
+    # These are upward nudges (feet). We probabilistically choose rise vs drop.
+    PT_RISE_2STR = {
+        "FF": 0.40,
+        "FT": 0.35,
+        "SI": 0.35,
+        "FC": 0.38,
+    }
+    PT_RISE_2STR_PROB = {
+        # probability of choosing the elevated target on 2 strikes
+        "FF": 0.28,
+        "FT": 0.18,
+        "SI": 0.15,
+        "FC": 0.22,
+    }
+
+    edge = PT_EDGE.get(code, 0.07)
+
+    b = 0 if balls is None else int(balls)
+    s = 0 if strikes is None else int(strikes)
+
+    # 3-ball counts: attack zone more (pull toward center)
+    if b >= 3:
+        mean_x = 0.65 * mean_x  # closer to middle
+        mean_z = 0.75 * mean_z + 0.25 * Z_CENTER
+
+    # 2-strike counts: expand (often lower/edge, sometimes elevate hard stuff)
+    if s >= 2:
+        sign = _push_sign(mean_x, rng)
+        mean_x = mean_x + sign * edge
+
+        # With hard pitches, occasionally go upstairs instead of always burying.
+        rise_prob = PT_RISE_2STR_PROB.get(code, 0.0)
+        if rise_prob > 0 and rng.random() < rise_prob and b <= 1:
+            mean_z = mean_z + PT_RISE_2STR.get(code, 0.35)
+        else:
+            mean_z = mean_z - PT_DROP_2STR.get(code, 0.16)
+
+    # Even in neutral counts, gently encourage edges for breakers (and a bit for cutters)
+    if b <= 1 and s <= 1 and code in {"SL", "ST", "CU", "KC", "CH", "FC"}:
+        sign = _push_sign(mean_x, rng)
+        # cutters get a smaller edge nudge than true breakers
+        mult = 0.35 if code == "FC" else 0.5
+        mean_x = mean_x + sign * (mult * edge)
+
+    # Clamp to physical-ish bounds
+    mean_x = float(np.clip(mean_x, PLATE_X_BOUNDS[0], PLATE_X_BOUNDS[1]))
+    mean_z = float(np.clip(mean_z, PLATE_Z_BOUNDS[0], PLATE_Z_BOUNDS[1]))
+
+    return mean_x, mean_z
 
 def _sample_location(mean_x: float, mean_z: float, pitch_type: str, rng: np.random.Generator | None = None):
     """Sample a plausible location around the model's mean prediction.
@@ -91,7 +207,10 @@ def _apply_user_context(serving_window, user_context: dict):
             w.at[last_idx, k] = user_context[k]
 
     # 2) Overwrite previous pitch one-hot + previous_zone if present
+    # Accept both naming conventions from the frontend
     last_pitch_type = user_context.get("last_pitch_type")
+    if last_pitch_type is None:
+        last_pitch_type = user_context.get("previous_pitch")
     if last_pitch_type is not None:
         code = str(last_pitch_type).upper().strip()
         # Zero out all previous_pitch_* columns, then set the matching one.
@@ -109,9 +228,14 @@ def _apply_user_context(serving_window, user_context: dict):
             elif f"{_PREV_PITCH_PREFIX}None" in w.columns:
                 w.at[last_idx, f"{_PREV_PITCH_PREFIX}None"] = 1.0
 
-    if "last_zone" in user_context and user_context["last_zone"] is not None:
+    # Accept both naming conventions from the frontend
+    last_zone = user_context.get("last_zone")
+    if last_zone is None:
+        last_zone = user_context.get("previous_zone")
+
+    if last_zone is not None:
         if "previous_zone" in w.columns:
-            w.at[last_idx, "previous_zone"] = user_context["last_zone"]
+            w.at[last_idx, "previous_zone"] = last_zone
 
     return w
 
@@ -144,6 +268,31 @@ def predict_next(
     location_model  = artifacts["location_model"]
 
     serving_window = _apply_user_context(serving_window, user_context or {})
+
+    # --- Sanity checks: location artifacts MUST match the saved location model ---
+    # location_model expects (None, seq_len, N)
+    expected_loc_nf = None
+    try:
+        expected_loc_nf = int(location_model.input_shape[0][-1])
+    except Exception:
+        expected_loc_nf = None
+
+    scaler_loc_nf = getattr(loc_scaler_X, "n_features_in_", None)
+    features_loc_nf = len(loc_features)
+
+    if expected_loc_nf is not None:
+        if scaler_loc_nf is not None and int(scaler_loc_nf) != expected_loc_nf:
+            raise ValueError(
+                f"Location scaler_X expects {scaler_loc_nf} features but location_model expects {expected_loc_nf}. "
+                "Your LOC_DIR artifacts are out of sync. Re-copy *all* location artifacts together "
+                "(pitch_location_model.keras, features.pkl, scaler_X.pkl, scaler_Y.pkl) from the same training run "
+                "into the folder your Flask app loads (LOC_DIR), then restart Flask."
+            )
+        if features_loc_nf != expected_loc_nf:
+            raise ValueError(
+                f"loc_features has {features_loc_nf} columns but location_model expects {expected_loc_nf}. "
+                "This also indicates mixed artifacts. Re-copy the full set of location artifacts from the same run."
+            )
 
     # Build feature matrices aligned to training features
     sub_pt  = ensure_columns(serving_window.copy(), pt_features)
@@ -202,21 +351,115 @@ def predict_next(
     else:
         pt_for_loc = pt_probs
 
-    loc_pred_scaled = location_model.predict(
+    loc_out_scaled = location_model.predict(
         [Xloc, p_ids[:, 0], b_ids[:, 0], pt_for_loc[np.newaxis, :]],
-        verbose=0
+        verbose=0,
+    )[0]
+
+    # We now expect the location model to output 4 values:
+    #   [mu_x, mu_z, log_var_x, log_var_z] in *scaled Y space*
+    if loc_out_scaled.shape[-1] != 4:
+        raise ValueError(
+            f"Location model output has shape {loc_out_scaled.shape}; expected 4 (mu_x, mu_z, log_var_x, log_var_z). "
+            "Did you forget to load the new Dense(4) location model?"
+        )
+
+    mu_scaled = np.array([loc_out_scaled[0], loc_out_scaled[1]], dtype=np.float32)
+    log_var_scaled = np.array([loc_out_scaled[2], loc_out_scaled[3]], dtype=np.float32)
+
+    # Convert mean back to original plate_x/plate_z units
+    mean_xz = loc_scaler_Y.inverse_transform(mu_scaled.reshape(1, 2))[0]
+    mean_x = float(mean_xz[0])
+    mean_z = float(mean_xz[1])
+
+    # Apply a light "intent" bias so means aren't always middle/middle.
+    # This uses count + pitch type to push to edges or attack zone.
+    last_row = serving_window.iloc[-1]
+    balls = None
+    strikes = None
+    try:
+        if "balls" in last_row.index:
+            balls = int(last_row["balls"])
+        if "strikes" in last_row.index:
+            strikes = int(last_row["strikes"])
+    except Exception:
+        balls = None
+        strikes = None
+
+    bias_rng = np.random.default_rng(rng_seed)
+    mean_x, mean_z = apply_targeting_bias(mean_x, mean_z, str(pt_pred), balls, strikes, bias_rng)
+
+    # IMPORTANT: sampling must be centered on the biased mean.
+    # Convert biased mean (original units) back into *scaled Y* space.
+    mu_biased_scaled = loc_scaler_Y.transform(np.array([[mean_x, mean_z]], dtype=np.float32))[0]
+
+    # Convert variance from scaled-space to original units.
+    # If y_scaled = (y - mean) / scale, then var_y = var_scaled * scale^2
+    # (StandardScaler stores per-dimension scale_)
+    y_scale = getattr(loc_scaler_Y, "scale_", None)
+    if y_scale is None:
+        # Extremely unlikely, but fail loudly if scaler isn't a StandardScaler-like object
+        raise ValueError("loc_scaler_Y is missing .scale_; cannot convert variance to original units")
+
+    var_scaled = np.exp(log_var_scaled)
+    std_scaled = np.sqrt(var_scaled)
+
+    std_x = float(std_scaled[0] * y_scale[0])
+    std_z = float(std_scaled[1] * y_scale[1])
+
+    # --- Clamp predicted std (REALISM / CALIBRATION) ---
+    # Floors prevent "laser beams"; ceilings prevent "everything is a ball".
+    STD_X_MIN, STD_Z_MIN = 0.03, 0.04
+
+    # Pitch-type-specific std ceilings (in ORIGINAL plate_x/plate_z units, feet).
+    # Tune these to taste.
+    PT_STD_MAX = {
+        # Fastballs / hard stuff (tighter)
+        "FF": (0.16, 0.22),
+        "FT": (0.17, 0.23),
+        "SI": (0.18, 0.24),
+        "FC": (0.18, 0.24),
+        "FS": (0.18, 0.24),
+        "SF": (0.18, 0.24),
+
+        # Sliders / sweepers (a bit wider)
+        "SL": (0.22, 0.28),
+        "ST": (0.24, 0.30),
+
+        # Curves / changeups (widest)
+        "CU": (0.26, 0.34),
+        "KC": (0.26, 0.34),
+        "CH": (0.24, 0.32),
+    }
+    DEFAULT_STD_MAX = (0.18, 0.24)
+
+    code = str(pt_pred).upper().strip()
+    mx, mz = PT_STD_MAX.get(code, DEFAULT_STD_MAX)
+
+    std_x = float(np.clip(std_x, STD_X_MIN, mx))
+    std_z = float(np.clip(std_z, STD_Z_MIN, mz))
+
+    # Convert the (clamped) std back into *scaled* space for sampling.
+    # If y_scaled = (y - mean) / scale, then std_scaled = std_orig / scale.
+    std_scaled_clamped = np.array(
+        [std_x / float(y_scale[0]), std_z / float(y_scale[1])],
+        dtype=np.float32,
     )
-    loc_pred = loc_scaler_Y.inverse_transform(loc_pred_scaled)[0]
 
-    # Location output from model is a mean prediction.
-    mean_x = float(loc_pred[0])
-    mean_z = float(loc_pred[1])
-
+    # Sample in scaled space (more numerically stable), then inverse-transform
     if sample_location:
         rng = np.random.default_rng(rng_seed)
-        samp_x, samp_z = _sample_location(mean_x, mean_z, str(pt_pred), rng=rng)
+        eps = rng.normal(0.0, 1.0, size=(2,)).astype(np.float32)
+        samp_scaled = mu_biased_scaled + std_scaled_clamped * eps
+        samp_xz = loc_scaler_Y.inverse_transform(samp_scaled.reshape(1, 2))[0]
+        samp_x = float(samp_xz[0])
+        samp_z = float(samp_xz[1])
     else:
         samp_x, samp_z = mean_x, mean_z
+
+    # Clamp to reasonable bounds (same bounds you were using for heuristic noise)
+    samp_x = float(np.clip(samp_x, PLATE_X_BOUNDS[0], PLATE_X_BOUNDS[1]))
+    samp_z = float(np.clip(samp_z, PLATE_Z_BOUNDS[0], PLATE_Z_BOUNDS[1]))
 
     # Context for UI (last pitch state is the “current” state)
     last = serving_window.iloc[-1]
@@ -238,5 +481,6 @@ def predict_next(
         "pitch_type_probs": {str(artifacts["pt_label_enc"].classes_[i]): float(pt_probs[i]) for i in range(len(pt_probs))},
         "location": {"plate_x": float(samp_x), "plate_z": float(samp_z)},
         "location_mean": {"plate_x": float(mean_x), "plate_z": float(mean_z)},
+        "location_std": {"plate_x": float(std_x), "plate_z": float(std_z)},
         "context": context
     }
