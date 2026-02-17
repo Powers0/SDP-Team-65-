@@ -21,6 +21,18 @@ const PITCH_TYPE_NAMES = {
   ST: "Sweeper",
 };
 
+function computePrevZone(plateX, plateZ, szBot, szTop) {
+  // TEMP encoding:
+  // 0 = unknown
+  // 1 = in-zone
+  // 2 = out-of-zone
+  if (typeof plateX !== "number" || typeof plateZ !== "number") return 0;
+  if (typeof szBot !== "number" || typeof szTop !== "number") return 0;
+
+  const inZone = isInStrikeZone(plateX, plateZ, szBot, szTop);
+  return inZone ? 1 : 2;
+}
+
 function prettyPitchType(code) {
   if (!code) return "__";
   const c = String(code).toUpperCase().trim();
@@ -92,6 +104,8 @@ export default function SimulatorPage() {
   const [pitches, setPitches] = useState([]); // each pitch: { plate_x, plate_z, pitchType, result }
   const [pitchIndex, setPitchIndex] = useState(-1); // -1 = "before pitch 1"
   const [contextLabel, setContextLabel] = useState(null); // e.g. "matchup", "pitcher+global"
+  const [lastPitchType, setLastPitchType] = useState("None");
+  const [lastZone, setLastZone] = useState(0);
   const pitchNum = pitchIndex >= 0 ? pitchIndex + 1 : "__";
 
   // current pitch (the one being viewed)
@@ -128,6 +142,17 @@ export default function SimulatorPage() {
       return null;
     }
 
+    console.log("Sending to API:", {
+      pitcher_mlbam: Number(pitcherId),
+      batter_mlbam: Number(batterId),
+      user_context: {
+        balls: liveCount.balls,
+        strikes: liveCount.strikes,
+        previous_pitch: lastPitchType,
+        previous_zone: lastZone,
+      },
+    });
+
     try {
       const res = await fetch("/api/predict", {
         method: "POST",
@@ -136,14 +161,19 @@ export default function SimulatorPage() {
           pitcher_mlbam: Number(pitcherId),
           batter_mlbam: Number(batterId),
           user_context: {
-            balls: liveCount?.balls ?? 0,
-            strikes: liveCount?.strikes ?? 0,
+            balls: liveCount.balls,
+            strikes: liveCount.strikes,
             outs_when_up: outs ?? 0,
             on_1b: bases?.on1 ? 1 : 0,
             on_2b: bases?.on2 ? 1 : 0,
             on_3b: bases?.on3 ? 1 : 0,
             inning: inning ?? 1,
             score_diff: (offScore ?? 0) - (defScore ?? 0),
+            bat_score: offScore ?? 0,
+            fld_score: defScore ?? 0,
+
+            previous_pitch: lastPitchType ?? "None",
+            previous_zone: lastZone ?? 0,
           },
         }),
       });
@@ -237,6 +267,9 @@ export default function SimulatorPage() {
 
     // Optional: store whether it was in-zone for debugging / UI later
     p.in_zone = inZone;
+
+    setLastPitchType(p.pitchType ?? "None");
+    setLastZone(computePrevZone(px, pz, szBot, szTop));
 
     setPitches((prev) => [...prev, p]);
     setPitchIndex((prev) => prev + 1);

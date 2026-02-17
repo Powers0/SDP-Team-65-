@@ -1,5 +1,69 @@
 import numpy as np
 
+# Serving table feature columns for previous pitch one-hot usually look like:
+#   previous_pitch_FF, previous_pitch_SL, ..., previous_pitch_None
+_PREV_PITCH_PREFIX = "previous_pitch_"
+
+
+def _apply_user_context(serving_window, user_context: dict):
+    """Overwrite the LAST row of the window with the user-selected game context
+    and the last simulated pitch info (prev pitch type + prev zone), when those
+    columns exist in the serving window.
+
+    Expected user_context keys (all optional):
+      balls, strikes, outs_when_up, on_1b, on_2b, on_3b, inning, score_diff,
+      bat_score, fld_score,
+      last_pitch_type (e.g. 'FF', 'SL', 'None'), last_zone (numeric).
+    """
+    if not user_context:
+        return serving_window
+
+    w = serving_window.copy()
+    last_idx = w.index[-1]
+
+    # 1) Overwrite situational/context columns
+    overwrite_keys = [
+        "balls",
+        "strikes",
+        "outs_when_up",
+        "on_1b",
+        "on_2b",
+        "on_3b",
+        "inning",
+        "score_diff",
+        "bat_score",
+        "fld_score",
+    ]
+
+    for k in overwrite_keys:
+        if k in w.columns and k in user_context and user_context[k] is not None:
+            w.at[last_idx, k] = user_context[k]
+
+    # 2) Overwrite previous pitch one-hot + previous_zone if present
+    last_pitch_type = user_context.get("last_pitch_type")
+    if last_pitch_type is not None:
+        code = str(last_pitch_type).upper().strip()
+        # Zero out all previous_pitch_* columns, then set the matching one.
+        prev_cols = [c for c in w.columns if c.startswith(_PREV_PITCH_PREFIX)]
+        if prev_cols:
+            for c in prev_cols:
+                w.at[last_idx, c] = 0.0
+
+            # Prefer an exact match (e.g. previous_pitch_FF). Otherwise fall back to None if present.
+            target = f"{_PREV_PITCH_PREFIX}{code}"
+            if target in w.columns:
+                w.at[last_idx, target] = 1.0
+            elif f"{_PREV_PITCH_PREFIX}NONE" in w.columns:
+                w.at[last_idx, f"{_PREV_PITCH_PREFIX}NONE"] = 1.0
+            elif f"{_PREV_PITCH_PREFIX}None" in w.columns:
+                w.at[last_idx, f"{_PREV_PITCH_PREFIX}None"] = 1.0
+
+    if "last_zone" in user_context and user_context["last_zone"] is not None:
+        if "previous_zone" in w.columns:
+            w.at[last_idx, "previous_zone"] = user_context["last_zone"]
+
+    return w
+
 def ensure_columns(df_sub, required_cols):
     for col in required_cols:
         if col not in df_sub.columns:
@@ -26,30 +90,7 @@ def predict_next(
     pitchtype_model = artifacts["pitchtype_model"]
     location_model  = artifacts["location_model"]
 
-    # Apply user-selected context (balls/strikes/outs/bases/inning/score) to the LAST row
-    # so the model conditions on the situation the user picked, not just whatever the
-    # serving table's latest pitch happened to be.
-    if user_context:
-        # Work on a copy so we don't mutate the global SERVING_DF window
-        serving_window = serving_window.copy()
-
-        # Only overwrite columns that exist in the serving table.
-        # (Keeps this robust across different feature sets.)
-        overwrite_keys = [
-            "balls",
-            "strikes",
-            "outs_when_up",
-            "on_1b",
-            "on_2b",
-            "on_3b",
-            "inning",
-            "score_diff",
-        ]
-
-        last_idx = serving_window.index[-1]
-        for k in overwrite_keys:
-            if k in serving_window.columns and k in user_context and user_context[k] is not None:
-                serving_window.at[last_idx, k] = user_context[k]
+    serving_window = _apply_user_context(serving_window, user_context or {})
 
     # Build feature matrices aligned to training features
     sub_pt  = ensure_columns(serving_window.copy(), pt_features)
@@ -86,9 +127,18 @@ def predict_next(
 
     pt_pred = pt_label_enc.classes_[pt_idx]
 
-    # Location prediction (uses single IDs + pitch-type probs)
+    # Location prediction (uses single IDs + pitch-type signal)
+    # If we're sampling pitch type, feed the sampled type as a 1-hot to the location model
+    # so location can vary with the chosen pitch type (instead of always conditioning on the
+    # full distribution).
+    if sample_pitch_type:
+        pt_for_loc = np.zeros_like(pt_probs, dtype=np.float32)
+        pt_for_loc[pt_idx] = 1.0
+    else:
+        pt_for_loc = pt_probs
+
     loc_pred_scaled = location_model.predict(
-        [Xloc, p_ids[:, 0], b_ids[:, 0], pt_probs[np.newaxis, :]],
+        [Xloc, p_ids[:, 0], b_ids[:, 0], pt_for_loc[np.newaxis, :]],
         verbose=0
     )
     loc_pred = loc_scaler_Y.inverse_transform(loc_pred_scaled)[0]
@@ -109,6 +159,7 @@ def predict_next(
     return {
         "pitch_type": str(pt_pred),
         "pitch_type_idx": int(pt_idx),
+        "pitch_type_prob": float(pt_probs[pt_idx]),
         "pitch_type_probs": {str(artifacts["pt_label_enc"].classes_[i]): float(pt_probs[i]) for i in range(len(pt_probs))},
         "location": {"plate_x": float(loc_pred[0]), "plate_z": float(loc_pred[1])},
         "context": context
