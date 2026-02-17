@@ -1,5 +1,3 @@
-
-
 import pandas as pd
 import numpy as np
 import pickle
@@ -11,7 +9,8 @@ TEST_SIZE = 0.15
 RANDOM_SEED = 42
 
 CSV_DIR = "../csv data/"
-TYPE_PROBS_PATH = "../Pitch Type Prediction/artifacts/pitch_type_probs.npy"
+PT_ART_DIR = "../Pitch Type Prediction/artifacts/"
+PT_LE_PATH = PT_ART_DIR + "label_encoder.pkl"
 ARTIFACTS = "artifacts/"
 SHARED_DIR = "../artifacts/shared/" 
 
@@ -35,8 +34,22 @@ def preprocess(df):
     ]
     target_cols = ["plate_x", "plate_z"]
 
+    PITCH_MERGE = {
+        "FO": "FS",
+        "SF": "FS",
+    }
+
+    df["pitch_type"] = (
+        df["pitch_type"]
+        .astype(str)
+        .str.upper()
+        .replace(PITCH_MERGE)
+    )
+
+    # Need ordering keys present for previous-pitch features
     df = df.dropna(subset=features + target_cols +
-                   ["stand","p_throws","zone","pitch_type","pitcher","batter"])
+                   ["stand","p_throws","zone","pitch_type","pitcher","batter",
+                    "game_pk","at_bat_number","pitch_number"])
 
     for base in ["on_1b","on_2b","on_3b"]:
         df[base] = df[base].notna().astype(int)
@@ -51,7 +64,16 @@ def preprocess(df):
     df["batter_id"]  = batter_le.transform(df["batter"].astype(int))
 
 
-    df = df.sort_values(by=["pitcher","game_date","at_bat_number","pitch_number"])
+    # Proper pitch ordering within each plate appearance
+    df = df.sort_values(by=["pitcher", "game_date", "game_pk", "at_bat_number", "pitch_number"])
+
+    # Previous pitch location within the same plate appearance (NOT leaking future info)
+    grp = df.groupby(["pitcher", "game_pk", "at_bat_number"], sort=False)
+    df["prev_plate_x"] = grp["plate_x"].shift(1).fillna(0.0)
+    df["prev_plate_z"] = grp["plate_z"].shift(1).fillna(0.0)
+
+    # Add to model features (will be scaled later)
+    features += ["prev_plate_x", "prev_plate_z"]
 
     X = df[features].astype(float).values
     Y = df[["plate_x","plate_z"]].astype(float).values
@@ -59,22 +81,27 @@ def preprocess(df):
     return df, X, Y, features
 
 
-def build_sequences(df, X, Y, pitch_type_probs):
+def build_sequences(df, X, Y, pt_classes):
+    """Build (X_seq, Y_seq, P_seq, B_seq, PT_seq) where PT_seq is the TRUE pitch type
+    one-hot for the TARGET pitch row.
+
+    pt_classes defines the fixed order of the one-hot vector.
+    """
     seq_X, seq_Y = [], []
     seq_p, seq_b = [], []
     seq_type = []
 
-    grouped = df.groupby("pitcher").indices
-    idx_pt = 0
-    max_pt = pitch_type_probs.shape[0]
+    pt_classes = [str(c).upper().strip() for c in pt_classes]
+    pt_dim = len(pt_classes)
+    pt_to_idx = {c: i for i, c in enumerate(pt_classes)}
+
+    # Build sequences within each plate appearance so temporal features (prev loc/type) make sense
+    grouped = df.groupby(["pitcher", "game_pk", "at_bat_number"]).indices
 
     for _, idxs in grouped.items():
         idxs = list(idxs)
 
         for i in range(len(idxs) - SEQ_LEN):
-            if idx_pt >= max_pt:
-                break
-
             win = idxs[i : i + SEQ_LEN]
             tgt = idxs[i + SEQ_LEN]
 
@@ -82,16 +109,20 @@ def build_sequences(df, X, Y, pitch_type_probs):
             seq_Y.append(Y[tgt])
             seq_p.append(df.iloc[tgt]["pitcher_id"])
             seq_b.append(df.iloc[tgt]["batter_id"])
-            seq_type.append(pitch_type_probs[idx_pt])
 
-            idx_pt += 1
+            # TRUE pitch type one-hot for the target pitch
+            pt = str(df.iloc[tgt]["pitch_type"]).upper().strip()
+            vec = np.zeros(pt_dim, dtype=np.float32)
+            if pt in pt_to_idx:
+                vec[pt_to_idx[pt]] = 1.0
+            seq_type.append(vec)
 
     return (
         np.array(seq_X),
         np.array(seq_Y),
         np.array(seq_p),
         np.array(seq_b),
-        np.array(seq_type)
+        np.array(seq_type),
     )
 
 
@@ -105,11 +136,16 @@ if __name__ == "__main__":
     print("Preprocessing...")
     df, X, Y, features = preprocess(df)
 
-    print("Loading pitch-type probabilities...")
-    pitch_probs = np.load(TYPE_PROBS_PATH)
+    print("Loading pitch-type label encoder...")
+    pt_le = pickle.load(open(PT_LE_PATH, "rb"))
+    pt_classes = list(getattr(pt_le, "classes_", []))
+    if not pt_classes:
+        raise ValueError(f"No classes_ found in pitch type label encoder at {PT_LE_PATH}")
 
     print("Building sequences...")
-    X_seq, Y_seq, P_seq, B_seq, PT_seq = build_sequences(df, X, Y, pitch_probs)
+    X_seq, Y_seq, P_seq, B_seq, PT_seq = build_sequences(df, X, Y, pt_classes)
+
+    print("Pitch-type one-hot dim:", len(pt_classes))
 
     print("Train/test split (exactly like original)...")
     (
@@ -162,4 +198,3 @@ if __name__ == "__main__":
     pickle.dump(scaler_Y, open(ARTIFACTS + "scaler_Y.pkl", "wb"))
 
     print("\n✓ Dataset built. Behavior now matches the original script (apart from YEARS choice).")
-
