@@ -116,12 +116,14 @@ def api_predict():
     payload = request.get_json(force=True)
     pitcher_mlbam = int(payload["pitcher_mlbam"])
     batter_mlbam  = int(payload["batter_mlbam"])
+    # Optional user-selected context from frontend
+    user_context = payload.get("user_context")
 
     window, context_label = get_window_with_fallback(
         SERVING_DF, pitcher_mlbam, batter_mlbam, SEQ_LEN
     )
 
-    result = predict_next(window, ART, SEQ_LEN, pitcher_mlbam, batter_mlbam)
+    result = predict_next(window, ART, SEQ_LEN, pitcher_mlbam, batter_mlbam, user_context=user_context, sample_pitch_type=True)
 
     out = to_py(result)
     out["context_label"] = context_label
