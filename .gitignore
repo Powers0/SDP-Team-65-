@@ -4,3 +4,5 @@ statcast_full_2023.csv
 statcast_full_2022.csv
 statcast_full_2021.csv
 .DS_Store
+__pycache__/
+*.pyc

@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from tensorflow.keras.callbacks import EarlyStopping
 from pitchlocation_architecture import build_pitch_location_model
+import os
+import tensorflow as tf
 
 ART = "artifacts/"
 
@@ -46,7 +48,27 @@ model = build_pitch_location_model(
     pitch_type_dim=pitchtype_dim
 )
 
-model.compile(optimizer="adam", loss="mse", metrics=["mae"])
+def gaussian_nll(y_true, y_pred):
+    """
+    y_true: (batch, 2)  -> scaled [plate_x, plate_z]
+    y_pred: (batch, 4)  -> scaled [mu_x, mu_z, log_var_x, log_var_z]
+    """
+    mu = y_pred[:, :2]
+    log_var = y_pred[:, 2:]
+
+    # keep variances sane (prevents blowing up / collapsing)
+    log_var = tf.clip_by_value(log_var, -7.0, 3.0)
+
+    inv_var = tf.exp(-log_var)
+    sq = tf.square(y_true - mu)
+
+    # per-dimension NLL: 0.5*(log_var + (err^2)/var)
+    nll = 0.5 * (log_var + sq * inv_var)
+
+    # sum x+z, mean over batch
+    return tf.reduce_mean(tf.reduce_sum(nll, axis=1))
+
+model.compile(optimizer="adam", loss=gaussian_nll)
 model.summary()
 
 early = EarlyStopping(monitor="val_loss", patience=3, restore_best_weights=True)
@@ -62,12 +84,15 @@ history = model.fit(
 )
 
 print("\nEvaluating model...")
-loss, mae = model.evaluate([X_test, P_test, B_test, PT_test], Y_test, verbose=2)
-print(f"Test Loss (scaled): {loss:.4f}, Test MAE (scaled): {mae:.4f}")
+loss = model.evaluate([X_test, P_test, B_test, PT_test], Y_test, verbose=2)
+print(f"Test NLL (scaled): {loss:.4f}")
 
 Y_pred_scaled = model.predict([X_test, P_test, B_test, PT_test])
 
-Y_pred = scaler_Y.inverse_transform(Y_pred_scaled)
+# Take only the mean outputs for point-metric evaluation
+mu_scaled = Y_pred_scaled[:, :2]
+
+Y_pred = scaler_Y.inverse_transform(mu_scaled)
 Y_true = scaler_Y.inverse_transform(Y_test)
 
 mse = np.mean((Y_pred - Y_true)**2)
@@ -102,5 +127,6 @@ plt.title("Pitch Location True vs Predicted")
 plt.tight_layout()
 plt.show()
 
-model.save("pitch_location_model.keras")
-print("\nSaved model: pitch_location_model.keras")
+out_path = os.path.join(ART, "pitch_location_model.keras")
+model.save(out_path)
+print(f"\nSaved model: {out_path}")
