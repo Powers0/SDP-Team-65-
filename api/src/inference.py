@@ -5,39 +5,71 @@ import numpy as np
 
 _PREV_PITCH_PREFIX = "previous_pitch_"
 
-# --- Location noise sampling (game-feel realism) ---
-# Std devs are in FEET on the Statcast plate_x / plate_z axes.
-# Tune these to taste.
-PITCH_TYPE_LOC_NOISE = {
-    # Fastballs / hard stuff (tighter)
-    "FF": (0.18, 0.22),
-    "FT": (0.19, 0.23),
-    "SI": (0.20, 0.24),
-    "FC": (0.20, 0.24),
-    "FS": (0.20, 0.24),
-    "SF": (0.20, 0.24),
-
-    # Sliders / sweepers (a bit wider)
-    "SL": (0.24, 0.28),
-    "ST": (0.26, 0.30),
-
-    # Curves / changeups (widest)
-    "CU": (0.28, 0.34),
-    "KC": (0.28, 0.34),
-    "CH": (0.26, 0.32),
-
-    # Knuckleball / gimmicks (very wide)
-    "KN": (0.35, 0.45),
-    "EP": (0.32, 0.40),
-}
-
-DEFAULT_LOC_NOISE = (0.22, 0.28)
-
 # Simple physical-ish bounds so noise doesn't go insane.
-# These match your frontend world bounds reasonably well.
-
 PLATE_X_BOUNDS = (-2.0, 2.0)
 PLATE_Z_BOUNDS = (0.5, 4.5)
+
+# ---------------------------------------------------------------------------
+# GMM-based location sampler
+# ---------------------------------------------------------------------------
+
+def _nearest_component(gmm, mean_x: float, mean_z: float) -> int:
+    """Return the index of the GMM component whose mean is closest to the
+    model-predicted (mean_x, mean_z).  This preserves the model's directional
+    signal while using the GMM for realistic spread."""
+    query = np.array([[mean_x, mean_z]])
+    dists = np.sum((gmm.means_ - query) ** 2, axis=1)
+    return int(np.argmin(dists))
+
+
+def sample_location_gmm(
+    mean_x: float,
+    mean_z: float,
+    pitch_type: str,
+    gmm_dict: dict,
+    rng: np.random.Generator,
+    # How strongly to weight model mean vs. pure component sampling.
+    # 0.0 = always pick nearest component (full model guidance)
+    # 1.0 = sample component by mixture weights (ignore model mean)
+    component_temperature: float = 0.0,
+) -> tuple[float, float]:
+    """Sample a pitch location using the GMM fitted on real Statcast data.
+    If no GMM is available for the pitch type, falls back to a simple
+    Gaussian sample around the model mean with realistic std devs.
+    """
+    code = str(pitch_type).upper().strip()
+    gmm = gmm_dict.get(code) if gmm_dict else None
+
+    if gmm is None:
+        # Fallback: sample with realistic spread (wider than before)
+        FALLBACK_STD = {"x": 0.70, "z": 0.75}
+        x = float(np.clip(rng.normal(mean_x, FALLBACK_STD["x"]), *PLATE_X_BOUNDS))
+        z = float(np.clip(rng.normal(mean_z, FALLBACK_STD["z"]), *PLATE_Z_BOUNDS))
+        return x, z
+
+    n = gmm.n_components
+
+    if component_temperature <= 0.0:
+        # Pure model-guidance: always pick the nearest component
+        comp_idx = _nearest_component(gmm, mean_x, mean_z)
+    else:
+        # Blend: weighted random between nearest-component and mixture weights
+        # component_temperature=1 → pure mixture weights (ignores model mean)
+        nearest = _nearest_component(gmm, mean_x, mean_z)
+        one_hot = np.zeros(n)
+        one_hot[nearest] = 1.0
+        blend = (1.0 - component_temperature) * one_hot + component_temperature * gmm.weights_
+        blend = blend / blend.sum()
+        comp_idx = int(rng.choice(n, p=blend))
+
+    # Sample from the chosen component
+    mu_comp = gmm.means_[comp_idx]              
+    cov_comp = gmm.covariances_[comp_idx]        
+
+    sample = rng.multivariate_normal(mu_comp, cov_comp)
+    x = float(np.clip(sample[0], *PLATE_X_BOUNDS))
+    z = float(np.clip(sample[1], *PLATE_Z_BOUNDS))
+    return x, z
 
 
 # ---- Targeting bias helpers ----
@@ -62,7 +94,7 @@ def apply_targeting_bias(
 ) -> tuple[float, float]:
     """Heuristic 'intent' adjustment.
 
-    Your location model tends to regress toward average/strike-ish means.
+    Location model tends to regress toward average/strike-ish means.
     This nudges the *mean* based on count + pitch type to get more realistic
     zone-edge and chase behavior.
 
@@ -104,7 +136,6 @@ def apply_targeting_bias(
     }
 
     # Some pitchers intentionally "climb the ladder" with hard stuff on 2 strikes.
-    # These are upward nudges (feet). We probabilistically choose rise vs drop.
     PT_RISE_2STR = {
         "FF": 0.40,
         "FT": 0.35,
@@ -124,12 +155,12 @@ def apply_targeting_bias(
     b = 0 if balls is None else int(balls)
     s = 0 if strikes is None else int(strikes)
 
-    # 3-ball counts: attack zone more (pull toward center)
+    # 3-ball counts: attack zone more 
     if b >= 3:
         mean_x = 0.65 * mean_x  # closer to middle
         mean_z = 0.75 * mean_z + 0.25 * Z_CENTER
 
-    # 2-strike counts: expand (often lower/edge, sometimes elevate hard stuff)
+    # 2-strike counts: expand 
     if s >= 2:
         sign = _push_sign(mean_x, rng)
         mean_x = mean_x + sign * edge
@@ -155,20 +186,14 @@ def apply_targeting_bias(
     return mean_x, mean_z
 
 def _sample_location(mean_x: float, mean_z: float, pitch_type: str, rng: np.random.Generator | None = None):
-    """Sample a plausible location around the model's mean prediction.
-
-    Returns: (x, z)
+    """Legacy fallback sampler (used only if no GMM dict is available).
+    Kept for backward compatibility; prefer sample_location_gmm() instead.
     """
     rng = rng or np.random.default_rng()
-    code = (pitch_type or "").upper().strip()
-    sx, sz = PITCH_TYPE_LOC_NOISE.get(code, DEFAULT_LOC_NOISE)
-
-    x = float(mean_x + rng.normal(0.0, sx))
-    z = float(mean_z + rng.normal(0.0, sz))
-
-    # clamp
-    x = float(np.clip(x, PLATE_X_BOUNDS[0], PLATE_X_BOUNDS[1]))
-    z = float(np.clip(z, PLATE_Z_BOUNDS[0], PLATE_Z_BOUNDS[1]))
+    # Use realistic std devs – wider than the original values to avoid mean-collapse.
+    FALLBACK_STD = {"x": 0.70, "z": 0.75}
+    x = float(np.clip(rng.normal(mean_x, FALLBACK_STD["x"]), *PLATE_X_BOUNDS))
+    z = float(np.clip(rng.normal(mean_z, FALLBACK_STD["z"]), *PLATE_Z_BOUNDS))
     return x, z
 
 
@@ -255,6 +280,7 @@ def predict_next(
     sample_pitch_type: bool = False,
     sample_location: bool = True,
     rng_seed: int | None = None,
+    gmm_dict: dict | None = None,
 ):
     pt_features  = artifacts["pt_features"]
     pt_scaler_X  = artifacts["pt_scaler_X"]
@@ -301,7 +327,7 @@ def predict_next(
     Xpt  = pt_scaler_X.transform(sub_pt.values)[np.newaxis, :, :]
     Xloc = loc_scaler_X.transform(sub_loc.values)[np.newaxis, :, :]
 
-    # Embedding IDs from encoders (ALWAYS use selected players)
+    # Embedding IDs from encoders 
     p_le = artifacts["pitcher_le"]
     b_le = artifacts["batter_le"]
 
@@ -365,7 +391,6 @@ def predict_next(
         )
 
     mu_scaled = np.array([loc_out_scaled[0], loc_out_scaled[1]], dtype=np.float32)
-    log_var_scaled = np.array([loc_out_scaled[2], loc_out_scaled[3]], dtype=np.float32)
 
     # Convert mean back to original plate_x/plate_z units
     mean_xz = loc_scaler_Y.inverse_transform(mu_scaled.reshape(1, 2))[0]
@@ -389,75 +414,24 @@ def predict_next(
     bias_rng = np.random.default_rng(rng_seed)
     mean_x, mean_z = apply_targeting_bias(mean_x, mean_z, str(pt_pred), balls, strikes, bias_rng)
 
-    # IMPORTANT: sampling must be centered on the biased mean.
-    # Convert biased mean (original units) back into *scaled Y* space.
-    mu_biased_scaled = loc_scaler_Y.transform(np.array([[mean_x, mean_z]], dtype=np.float32))[0]
-
-    # Convert variance from scaled-space to original units.
-    # If y_scaled = (y - mean) / scale, then var_y = var_scaled * scale^2
-    # (StandardScaler stores per-dimension scale_)
-    y_scale = getattr(loc_scaler_Y, "scale_", None)
-    if y_scale is None:
-        # Extremely unlikely, but fail loudly if scaler isn't a StandardScaler-like object
-        raise ValueError("loc_scaler_Y is missing .scale_; cannot convert variance to original units")
-
-    var_scaled = np.exp(log_var_scaled)
-    std_scaled = np.sqrt(var_scaled)
-
-    std_x = float(std_scaled[0] * y_scale[0])
-    std_z = float(std_scaled[1] * y_scale[1])
-
-    # --- Clamp predicted std (REALISM / CALIBRATION) ---
-    # Floors prevent "laser beams"; ceilings prevent "everything is a ball".
-    STD_X_MIN, STD_Z_MIN = 0.03, 0.04
-
-    # Pitch-type-specific std ceilings (in ORIGINAL plate_x/plate_z units, feet).
-    # Tune these to taste.
-    PT_STD_MAX = {
-        # Fastballs / hard stuff (tighter)
-        "FF": (0.16, 0.22),
-        "FT": (0.17, 0.23),
-        "SI": (0.18, 0.24),
-        "FC": (0.18, 0.24),
-        "FS": (0.18, 0.24),
-        "SF": (0.18, 0.24),
-
-        # Sliders / sweepers (a bit wider)
-        "SL": (0.22, 0.28),
-        "ST": (0.24, 0.30),
-
-        # Curves / changeups (widest)
-        "CU": (0.26, 0.34),
-        "KC": (0.26, 0.34),
-        "CH": (0.24, 0.32),
-    }
-    DEFAULT_STD_MAX = (0.18, 0.24)
-
-    code = str(pt_pred).upper().strip()
-    mx, mz = PT_STD_MAX.get(code, DEFAULT_STD_MAX)
-
-    std_x = float(np.clip(std_x, STD_X_MIN, mx))
-    std_z = float(np.clip(std_z, STD_Z_MIN, mz))
-
-    # Convert the (clamped) std back into *scaled* space for sampling.
-    # If y_scaled = (y - mean) / scale, then std_scaled = std_orig / scale.
-    std_scaled_clamped = np.array(
-        [std_x / float(y_scale[0]), std_z / float(y_scale[1])],
-        dtype=np.float32,
-    )
-
-    # Sample in scaled space (more numerically stable), then inverse-transform
+    # --- Sample final location ---
+    # Prefer GMM-based sampling (realistic spread from real Statcast data).
+    # Falls back to the legacy Gaussian sampler if no GMM dict is provided.
     if sample_location:
         rng = np.random.default_rng(rng_seed)
-        eps = rng.normal(0.0, 1.0, size=(2,)).astype(np.float32)
-        samp_scaled = mu_biased_scaled + std_scaled_clamped * eps
-        samp_xz = loc_scaler_Y.inverse_transform(samp_scaled.reshape(1, 2))[0]
-        samp_x = float(samp_xz[0])
-        samp_z = float(samp_xz[1])
+        _gmm_dict = gmm_dict if gmm_dict is not None else artifacts.get("location_gmm")
+        if _gmm_dict:
+            samp_x, samp_z = sample_location_gmm(
+                mean_x, mean_z, str(pt_pred), _gmm_dict, rng,
+                component_temperature=0.35,  # blend: model guidance + real mixture spread
+            )
+        else:
+            # Legacy fallback
+            samp_x, samp_z = _sample_location(mean_x, mean_z, str(pt_pred), rng)
     else:
         samp_x, samp_z = mean_x, mean_z
 
-    # Clamp to reasonable bounds (same bounds you were using for heuristic noise)
+    # Clamp to reasonable bounds
     samp_x = float(np.clip(samp_x, PLATE_X_BOUNDS[0], PLATE_X_BOUNDS[1]))
     samp_z = float(np.clip(samp_z, PLATE_Z_BOUNDS[0], PLATE_Z_BOUNDS[1]))
 
@@ -481,6 +455,5 @@ def predict_next(
         "pitch_type_probs": {str(artifacts["pt_label_enc"].classes_[i]): float(pt_probs[i]) for i in range(len(pt_probs))},
         "location": {"plate_x": float(samp_x), "plate_z": float(samp_z)},
         "location_mean": {"plate_x": float(mean_x), "plate_z": float(mean_z)},
-        "location_std": {"plate_x": float(std_x), "plate_z": float(std_z)},
         "context": context
     }

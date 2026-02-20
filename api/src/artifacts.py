@@ -3,7 +3,7 @@ from tensorflow.keras.models import load_model
 import json
 import os
 
-def load_all(PT_DIR, LOC_DIR, SHARED_DIR):
+def load_all(PT_DIR, LOC_DIR, SHARED_DIR, gmm_path: str | None = None):
     pitchtype_model = load_model(PT_DIR + "pitchtype_model.keras")
     location_model  = load_model(LOC_DIR + "pitch_location_model.keras", compile=False)
 
@@ -22,6 +22,19 @@ def load_all(PT_DIR, LOC_DIR, SHARED_DIR):
     with open(names_path, "r") as f:
         player_names = json.load(f)
 
+    # GMM artifact (optional – produced by fit_location_gmm.py)
+    location_gmm = None
+    if gmm_path and os.path.exists(gmm_path):
+        with open(gmm_path, "rb") as f:
+            location_gmm = pickle.load(f)
+        print(f"Loaded location GMMs for pitch types: {list(location_gmm.keys())}")
+    else:
+        print(
+            f"WARNING: location_gmm.pkl not found at {gmm_path!r}. "
+            "Run 'python fit_location_gmm.py' inside 'Pitch Location Prediction/' first. "
+            "Falling back to legacy Gaussian sampler."
+        )
+
     return {
         "pitchtype_model": pitchtype_model,
         "location_model": location_model,
@@ -34,4 +47,5 @@ def load_all(PT_DIR, LOC_DIR, SHARED_DIR):
         "pitcher_le": pitcher_le,
         "batter_le": batter_le,
         "player_names": player_names,
+        "location_gmm": location_gmm,   # dict of {pitch_type: GaussianMixture} or None
     }

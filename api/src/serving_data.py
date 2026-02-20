@@ -27,14 +27,6 @@ def _take_tail(df: pd.DataFrame, n: int) -> pd.DataFrame:
     return df.tail(n)
 
 
-def get_latest_window(df, pitcher_mlbam: int, batter_mlbam: int, seq_len: int):
-    """Backward-compatible: strict matchup-only window."""
-    sub = df[(df["pitcher"] == pitcher_mlbam) & (df["batter"] == batter_mlbam)]
-    if len(sub) < seq_len:
-        raise ValueError("Not enough pitches in this matchup to build a context window.")
-    sub = _sort_serving(sub).tail(seq_len)
-    return sub
-
 
 def get_window_with_fallback(df: pd.DataFrame, pitcher_mlbam: int, batter_mlbam: int, seq_len: int):
     """
