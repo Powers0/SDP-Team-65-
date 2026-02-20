@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
 
-from src.config import SEQ_LEN, PT_DIR, LOC_DIR, SHARED_DIR, SERVING_TABLE_PATH
+from src.config import SEQ_LEN, PT_DIR, LOC_DIR, SHARED_DIR, SERVING_TABLE_PATH, LOCATION_GMM_PATH
 from src.artifacts import load_all
 from src.serving_data import load_serving_table, get_window_with_fallback
 from src.inference import predict_next
@@ -85,11 +85,20 @@ def sample_from_probs(probs: dict) -> tuple[str, float]:
 
 
 
-def build_repertoire_map(df):
+def build_repertoire_map(df, min_usage: float = 0.02):
+    """Build a per-pitcher set of allowed pitch types.
+
+    A pitch type must account for at least `min_usage` (default 2%) of a
+    pitcher's total pitches to be included. This prevents historical outlier
+    pitches (e.g. a sinker a pitcher threw 1% of the time in 2021 but abandoned)
+    from leaking through the repertoire mask at inference time.
+    """
     rep = {}
     for pid, group in df.groupby("pitcher"):
         # Normalize codes to match training merges (FO/SF -> FS)
-        types = set(group["pitch_type"].dropna().map(norm_pitch_type).astype(str))
+        normalized = group["pitch_type"].dropna().map(norm_pitch_type).astype(str)
+        counts = normalized.value_counts(normalize=True)
+        types = set(counts[counts >= min_usage].index)
         rep[int(pid)] = types
     return rep
 
@@ -100,7 +109,7 @@ CORS(
 )
 
 print("Loading artifacts/models...")
-ART = load_all(PT_DIR, LOC_DIR, SHARED_DIR)
+ART = load_all(PT_DIR, LOC_DIR, SHARED_DIR, gmm_path=LOCATION_GMM_PATH)
 print("PT_DIR:", os.path.abspath(PT_DIR))
 print("Loaded pitchtype model input_shape:", ART["pitchtype_model"].input_shape)
 print("pt_features len:", len(ART["pt_features"]))
@@ -208,35 +217,10 @@ def api_predict():
         sample_pitch_type=True,
     )
 
-    # BEFORE mask
-    raw_probs = result.get("pitch_type_probs", {})
-    raw_probs_norm = {norm_pitch_type(str(k)): float(v) for k, v in raw_probs.items()}
-    print("RAW top10:", sorted(raw_probs_norm.items(), key=lambda kv: kv[1], reverse=True)[:10])
-    print("pitcher repertoire:", REPERTOIRE_MAP.get(pitcher_mlbam))
-
-    # Apply repertoire mask + renormalize
-    masked_probs = apply_repertoire_mask(raw_probs_norm, pitcher_mlbam, REPERTOIRE_MAP)
-    print("MASKED top10:", sorted(masked_probs.items(), key=lambda kv: kv[1], reverse=True)[:10])
-
-    # Always return masked probs to the frontend (even if unchanged)
-    result["pitch_type_probs"] = masked_probs
-
-    # Resample pitch_type from masked probs so we never show an impossible pitch.
-    sampled_type, sampled_prob = sample_from_probs(masked_probs)
-    result["pitch_type"] = str(sampled_type)
-    result["pitch_type_prob"] = float(sampled_prob)
-
-    # Update idx to match label encoder classes (if present)
-    le = ART.get("pt_label_enc")
-    if le is not None and hasattr(le, "classes_"):
-        cls = [norm_pitch_type(str(x)) for x in list(le.classes_)]
-        if sampled_type in cls:
-            result["pitch_type_idx"] = int(cls.index(sampled_type))
-
+    
+    
     out = to_py(result)
     out["context_label"] = context_label
-    
-
     return jsonify(out)
 
 if __name__ == "__main__":
