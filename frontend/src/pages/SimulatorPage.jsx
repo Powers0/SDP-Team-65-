@@ -124,9 +124,6 @@ export default function SimulatorPage() {
     return computeCountFromPitches(pitches, null);
   }, [pitches]);
 
-  // --- MODEL API (Flask) ---
-  // If your Flask server is running on a different host/port, update this.
-
   async function fetchModelPitch() {
     // Try to extract MLBAM ids from whatever shape you're currently passing.
     const pitcherId =
@@ -218,7 +215,7 @@ export default function SimulatorPage() {
       setContextLabel(api.context_label);
     }
 
-    // Map API -> our pitch shape (use fallbacks so nothing breaks while you inspect keys)
+    // Map API -> our pitch shape
     const mapped = api
       ? {
           plate_x:
@@ -245,7 +242,7 @@ export default function SimulatorPage() {
             api.pt ??
             "FF",
           // We derive Ball/Strike from the predicted location + hitter zone.
-          // (Your API currently returns pitch_type + location; this keeps the sim consistent.)
+          //
           result: null,
         }
       : null;
@@ -264,9 +261,6 @@ export default function SimulatorPage() {
     if (!existing) {
       p.result = inZone ? "Strike" : "Ball";
     }
-
-    // Optional: store whether it was in-zone for debugging / UI later
-    p.in_zone = inZone;
 
     setLastPitchType(p.pitchType ?? "None");
     setLastZone(computePrevZone(px, pz, szBot, szTop));
