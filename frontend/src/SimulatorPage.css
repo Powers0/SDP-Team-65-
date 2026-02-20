@@ -214,7 +214,7 @@
   min-height: 560px;
 
   display: grid;
-  grid-template-columns: 180px var(--zoneW) 180px; /* batter | zone | info */
+  grid-template-columns: 180px var(--zoneW) 220px; /* batter | zone | info */
   grid-template-rows:
     var(--silSize) minmax(var(--pitcherToZoneGap), 1fr)
     auto auto auto;
@@ -293,20 +293,31 @@
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
+
+  min-width: 0;
+  overflow: hidden;
 }
 
 .info-row {
   display: flex;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0; /* allow children to shrink */
 }
 .info-label {
   font-size: 12px;
   opacity: 0.7;
+  white-space: nowrap;
 }
 .info-value {
   font-size: 13px;
   font-weight: 600;
+  white-space: nowrap; /* keep one line */
+  overflow: hidden; /* prevent spilling outside the card */
+  text-overflow: ellipsis; /* show … when too long */
+  min-width: 0;
+  flex: 1;
+  text-align: right;
 }
 
 .pitch-result {

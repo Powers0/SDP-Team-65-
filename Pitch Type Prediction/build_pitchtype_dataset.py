@@ -29,7 +29,14 @@ def preprocess(df):
         "bat_score", "fld_score"
     ]
 
-    common_pitches = ["FF", "SL", "SI", "CH", "CU", "FC", "ST"]
+    PITCH_MERGE = {
+        "FO": "FS",  # forkball -> splitter family
+        "SF": "FS",  # split-finger -> splitter family (optional)
+    }
+
+    df["pitch_type"] = df["pitch_type"].astype(str).str.upper().replace(PITCH_MERGE)
+
+    common_pitches = ["FF", "SL", "SI", "CH", "CU", "FC", "ST", "FS"]
 
     df = df.dropna(subset=features + ["pitch_type", "stand", "p_throws", "zone"])
     df = df[df["pitch_type"].isin(common_pitches)]

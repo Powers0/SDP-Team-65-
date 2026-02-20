@@ -23,7 +23,7 @@ def build_pitch_location_model(seq_len, num_features, num_pitchers, num_batters,
     x = Dense(32, activation="relu")(x)
 
     x = Concatenate()([x, pitchtype_input])
-    out = Dense(2)(x)
+    out = Dense(4)(x)
 
     return Model(
         inputs=[seq_input, pitcher_input, batter_input, pitchtype_input],
