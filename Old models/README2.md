@@ -10,7 +10,7 @@
 ![](https://t9017284666.p.clickup-attachments.com/t9017284666/6f8ad8b7-699c-4cec-b369-f8d5764ea9a4/image.png)
 
 
-This model was one of the better preforming early models. Random forrest is strong with picking out trends in the data. However, random forrest does not have built in sequencing for the pitches. To accomplish this, 3 additional features were added; the type of the last 3 pitches. More features of the previous pitches could have been implemented but adding 15-20 more features would just overcomplicate and overfit the model negatively. Due to these limitations, we decided to move away from random forrest as preferred machine learning method.
+This model was one of the better preforming early models. Random forest is strong with picking out trends in the data. However, random forest does not have built in sequencing for the pitches. To accomplish this, 3 additional features were added; the type of the last 3 pitches. More features of the previous pitches could have been implemented but adding 15-20 more features would just overcomplicate and overfit the model negatively. Due to these limitations, we decided to move away from random forest as preferred machine learning method.
 *   Nueral Network Model - Accuracy: 12%
     *   Dependancies: pybaseball pandas numpy scikit-learn seaborn matplotlib, pytorch
     *   Features: Contextual variables include balls, strikes, outs\_when\_up, inning Binary encodings for on\_1b, on\_2b, on\_3b bat\_score, fld\_score, and a computed score\_diff
