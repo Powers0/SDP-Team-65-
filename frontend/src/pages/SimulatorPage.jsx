@@ -448,12 +448,46 @@ export default function SimulatorPage() {
 
             {/* zone */}
             <div className="zone-world" ref={zoneRef} aria-label="Strike zone">
-              {/* batter silhouette – absolutely positioned beside the zone */}
-              <img
-                className={`silhouette batter-silhouette ${batter?.bats === "R" ? "batter-left" : "batter-right"}`}
-                src={batter?.bats === "R" ? batterRightB : batterLeftB}
-                alt="Batter silhouette"
-              />
+              {/* batter silhouette – anchored so the zone rect overlaps knees→shoulders.
+                   SVG body proportions (approximate):
+                     top of head  →  ~15% from top
+                     shoulders    →  ~30% from top   (= sz_top)
+                     knees        →  ~70% from top   (= sz_bot)
+                     feet         →  ~95% from top
+                   So the strike zone spans ~40% of the full image height.
+                   fullH = zoneRect.height / 0.40
+                   top   = zoneRect.top - fullH * 0.30  (shift up by the head region)
+              */}
+              {zoneRect.height > 0 &&
+                (() => {
+                  const fullH = zoneRect.height / 0.3;
+                  const imgTop = zoneRect.top - fullH * 0.4;
+                  const isRight = batter?.bats === "R";
+                  // Anchor the inner edge of the silhouette at the outer pitch boundary:
+                  // right-handed batter → left edge at xToPx(X_MIN) (leftmost pitch)
+                  // left-handed batter  → right edge at xToPx(X_MAX) (rightmost pitch)
+                  // Anchor the batter's inner edge to the near side of the strike zone rect.
+                  // Righties stand to the left → their right edge meets xToPx(-PLATE_HALF)
+                  // Lefties stand to the right → their left edge meets xToPx(+PLATE_HALF)
+                  const plateLeftPx = xToPx(-PLATE_HALF);
+                  const plateRightPx = xToPx(PLATE_HALF);
+                  return (
+                    <img
+                      className={`silhouette batter-silhouette ${isRight ? "batter-right" : "batter-left"}`}
+                      src={isRight ? batterRightB : batterLeftB}
+                      alt="Batter silhouette"
+                      style={{
+                        top: `${imgTop}px`,
+                        height: `${fullH}px`,
+                        width: "auto",
+                        maxHeight: "none",
+                        ...(isRight
+                          ? { right: `${zoneSize.w - plateLeftPx}px` }
+                          : { left: `${plateRightPx}px` }),
+                      }}
+                    />
+                  );
+                })()}
 
               <div
                 className="zone-rect"
@@ -471,21 +505,6 @@ export default function SimulatorPage() {
                   style={{ left: `${dot.left}px`, top: `${dot.top}px` }}
                 />
               )}
-            </div>
-
-            {/* right of zone */}
-            <div className="pitch-info">
-              <div className="info-row">
-                <span className="info-label">Pitch Type</span>
-                <span className="info-value">
-                  {prettyPitchType(currentPitch?.pitchType)}
-                </span>
-              </div>
-
-              <div className="info-row">
-                <span className="info-label">Pitch #</span>
-                <span className="info-value">{pitchNum}</span>
-              </div>
             </div>
 
             {/* under zone, BEFORE buttons */}
@@ -560,6 +579,18 @@ export default function SimulatorPage() {
             <div className="scoreboard-row">
               <div className="label">Inning</div>
               <div className="value mono">{inning}</div>
+            </div>
+
+            <div className="scoreboard-row">
+              <div className="label">Pitch #</div>
+              <div className="value mono">{pitchNum}</div>
+            </div>
+
+            <div className="scoreboard-row">
+              <div className="label">Pitch Type</div>
+              <div className="value">
+                {prettyPitchType(currentPitch?.pitchType)}
+              </div>
             </div>
           </div>
         </div>
