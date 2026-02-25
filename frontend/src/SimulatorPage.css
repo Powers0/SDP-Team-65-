@@ -8,13 +8,14 @@
   --zoneW: clamp(240px, 22vw, 320px);
 
   /* silhouette size */
-  --silSize: 90px;
+  --silSize: 130px;
+  --pitcherSilH: 110px;
 
   /* layout gaps */
   --gapX: 16px;
   --gapY: 12px;
 
-  --pitcherToZoneGap: 48px;
+  --pitcherToZoneGap: 16px;
 }
 
 .sim-header {
@@ -214,37 +215,65 @@
   min-height: 560px;
 
   display: grid;
-  grid-template-columns: 180px var(--zoneW) 220px; /* batter | zone | info */
+  grid-template-columns: var(--silSize) var(--zoneW) 220px; /* batter | zone | info */
   grid-template-rows:
-    var(--silSize) minmax(var(--pitcherToZoneGap), 1fr)
+    var(--pitcherSilH) minmax(var(--pitcherToZoneGap), 1fr)
     auto auto auto;
   column-gap: var(--gapX);
   row-gap: var(--gapY);
   align-content: stretch;
 }
 
+/* Silhouette images – white bg + black art, inverted so black bg disappears via screen blend */
+.silhouette {
+  display: block;
+  mix-blend-mode: screen;
+  filter: invert(1);
+}
+
 .pitcher-slot {
   grid-column: 2;
   grid-row: 1;
   justify-self: center;
-
-  width: var(--silSize);
-  height: var(--silSize);
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.05);
-  margin-bottom: 12px;
-}
-
-.batter-slot {
-  grid-column: 1;
-  grid-row: 3;
-  justify-self: end;
   align-self: end;
 
   width: var(--silSize);
-  height: var(--silSize);
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.05);
+  height: var(--pitcherSilH);
+  overflow: visible;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.pitcher-silhouette {
+  width: var(--silSize);
+  height: auto;
+  max-height: var(--pitcherSilH);
+  object-fit: contain;
+  object-position: bottom center;
+}
+
+/* Batter silhouette: absolutely positioned outside zone-world's box */
+.batter-silhouette {
+  position: absolute;
+  bottom: 0;
+  width: var(--silSize);
+  height: auto;
+  max-height: 85%;
+  object-fit: contain;
+  object-position: bottom;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.batter-silhouette.batter-left {
+  right: 100%;
+  margin-right: 4px;
+}
+
+.batter-silhouette.batter-right {
+  left: 100%;
+  margin-left: 4px;
 }
 
 .zone-world {
@@ -255,6 +284,7 @@
   width: 100%;
   aspect-ratio: 3 / 4;
   position: relative;
+  overflow: visible;
 
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -393,8 +423,8 @@
   }
 
   .zone-stack {
-    grid-template-columns: 120px var(--zoneW);
-    grid-template-rows: var(--silSize) 1fr auto auto auto auto;
+    grid-template-columns: var(--silSize) var(--zoneW);
+    grid-template-rows: var(--pitcherSilH) 1fr auto auto auto auto;
   }
 
   .pitch-info {
