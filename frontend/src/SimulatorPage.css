@@ -7,9 +7,9 @@
   /* Zone width: tweak this ONE value (and it will stay responsive) */
   --zoneW: clamp(240px, 22vw, 320px);
 
-  /* silhouette size */
-  --silSize: 130px;
-  --pitcherSilH: 110px;
+  /* silhouette sizes */
+  --silSize: 200px; /* batter column width & image width */
+  --pitcherSilH: 120px; /* pitcher slot height */
 
   /* layout gaps */
   --gapX: 16px;
@@ -209,17 +209,17 @@
 }
 
 .zone-stack {
-  width: min(900px, 100%);
+  width: var(--zoneW);
   height: calc(100vh - 170px);
   max-height: 820px;
   min-height: 560px;
 
   display: grid;
-  grid-template-columns: var(--silSize) var(--zoneW) 220px; /* batter | zone | info */
+  /* single column — just the zone width, centered by sim-center's flexbox */
+  grid-template-columns: var(--zoneW);
   grid-template-rows:
     var(--pitcherSilH) minmax(var(--pitcherToZoneGap), 1fr)
     auto auto auto;
-  column-gap: var(--gapX);
   row-gap: var(--gapY);
   align-content: stretch;
 }
@@ -232,7 +232,7 @@
 }
 
 .pitcher-slot {
-  grid-column: 2;
+  grid-column: 1;
   grid-row: 1;
   justify-self: center;
   align-self: end;
@@ -253,31 +253,27 @@
   object-position: bottom center;
 }
 
-/* Batter silhouette: absolutely positioned outside zone-world's box */
+/* Batter silhouette: absolutely positioned beside the zone-world box.
+   top + height are set via inline style, derived from the inner zone rect
+   so the silhouette's shoulder-to-knee span always matches sz_top→sz_bot. */
 .batter-silhouette {
   position: absolute;
-  bottom: 0;
-  width: var(--silSize);
-  height: auto;
-  max-height: 85%;
-  object-fit: contain;
-  object-position: bottom;
   z-index: 1;
   pointer-events: none;
 }
 
+/* Horizontal position is set via inline style using xToPx(X_MIN/X_MAX),
+   so the inner edge of the silhouette sits exactly at the outer pitch boundary. */
 .batter-silhouette.batter-left {
-  right: 100%;
-  margin-right: 4px;
+  /* left: set inline */
 }
 
 .batter-silhouette.batter-right {
-  left: 100%;
-  margin-left: 4px;
+  /* right: set inline */
 }
 
 .zone-world {
-  grid-column: 2;
+  grid-column: 1;
   grid-row: 3;
   align-self: end;
 
@@ -287,8 +283,6 @@
   overflow: visible;
 
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.01);
 }
 
 .zone-rect {
@@ -310,48 +304,8 @@
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.25);
 }
 
-.pitch-info {
-  grid-column: 3;
-  grid-row: 3;
-  align-self: end;
-
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
-
-  min-width: 0;
-  overflow: hidden;
-}
-
-.info-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 0; /* allow children to shrink */
-}
-.info-label {
-  font-size: 12px;
-  opacity: 0.7;
-  white-space: nowrap;
-}
-.info-value {
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap; /* keep one line */
-  overflow: hidden; /* prevent spilling outside the card */
-  text-overflow: ellipsis; /* show … when too long */
-  min-width: 0;
-  flex: 1;
-  text-align: right;
-}
-
 .pitch-result {
-  grid-column: 2;
+  grid-column: 1 / -1;
   grid-row: 4;
   justify-self: center;
 
@@ -366,7 +320,7 @@
 }
 
 .controls {
-  grid-column: 2;
+  grid-column: 1 / -1;
   grid-row: 5;
   justify-self: center;
 
@@ -423,26 +377,19 @@
   }
 
   .zone-stack {
-    grid-template-columns: var(--silSize) var(--zoneW);
-    grid-template-rows: var(--pitcherSilH) 1fr auto auto auto auto;
-  }
-
-  .pitch-info {
-    grid-column: 1 / -1;
-    grid-row: 4;
-    justify-self: center;
-    width: min(420px, 100%);
+    grid-template-columns: var(--zoneW);
+    grid-template-rows: var(--pitcherSilH) 1fr auto auto auto;
   }
 
   .pitch-result {
     grid-column: 1 / -1;
-    grid-row: 5;
+    grid-row: 4;
     width: min(520px, 100%);
   }
 
   .controls {
     grid-column: 1 / -1;
-    grid-row: 6;
+    grid-row: 5;
     width: min(520px, 100%);
   }
 }
