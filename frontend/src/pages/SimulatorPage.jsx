@@ -2,6 +2,12 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "../SimulatorPage.css";
 
+// Silhouette assets
+import pitcherLeftB from "../assets/pitcher_left_b.svg";
+import pitcherRightB from "../assets/pitcher_right_b.svg";
+import batterLeftB from "../assets/batter_left_b.svg";
+import batterRightB from "../assets/batter_right_b.svg";
+
 // Pitch type code -> human readable label
 const PITCH_TYPE_NAMES = {
   FF: "4-Seam Fastball",
@@ -430,13 +436,25 @@ export default function SimulatorPage() {
         <div className="sim-center">
           <div className="zone-stack">
             {/* top pitcher */}
-            <div className="pitcher-slot">{/* pitcher silhouette */}</div>
+            <div className="pitcher-slot">
+              <img
+                className="silhouette pitcher-silhouette"
+                src={pitcher?.throws === "L" ? pitcherLeftB : pitcherRightB}
+                alt="Pitcher silhouette"
+              />
+            </div>
 
-            {/* batter (left of zone) */}
-            <div className="batter-slot">{/* batter silhouette */}</div>
+            {/* batter silhouette – rendered inside zone-world to avoid grid conflicts */}
 
             {/* zone */}
             <div className="zone-world" ref={zoneRef} aria-label="Strike zone">
+              {/* batter silhouette – absolutely positioned beside the zone */}
+              <img
+                className={`silhouette batter-silhouette ${batter?.bats === "R" ? "batter-left" : "batter-right"}`}
+                src={batter?.bats === "R" ? batterRightB : batterLeftB}
+                alt="Batter silhouette"
+              />
+
               <div
                 className="zone-rect"
                 style={{
