@@ -75,6 +75,117 @@
   gap: 12px;
 }
 
+.sim-left {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Pitch history panel */
+.pitch-history {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pitch-history-list {
+  flex: 1;
+  min-height: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  /* subtle scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.pitch-history-list::-webkit-scrollbar {
+  width: 4px;
+}
+.pitch-history-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.pitch-history-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+}
+
+.pitch-history-row {
+  display: grid;
+  grid-template-columns: 28px 52px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  font-size: 12px;
+}
+
+.pitch-history-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.pitch-history-row.active {
+  background: rgba(255, 255, 255, 0.1);
+  border-left: 2px solid rgba(255, 255, 255, 0.5);
+  padding-left: 4px;
+}
+
+.ph-num {
+  font-size: 11px;
+  opacity: 0.45;
+  font-variant-numeric: tabular-nums;
+}
+
+.ph-result {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+}
+
+.ph-result.ball {
+  color: #6dde7e;
+}
+
+.ph-result.strike {
+  color: #f0c040;
+}
+
+.ph-result.foul {
+  color: #f0a040;
+}
+
+.ph-result.hit {
+  color: #60aaff;
+}
+
+.ph-result.out {
+  color: #ff6b6b;
+}
+
+.ph-result.other {
+  opacity: 0.6;
+}
+
+.ph-empty {
+  font-size: 12px;
+  opacity: 0.4;
+  font-style: italic;
+  padding: 4px 2px;
+}
+
+.ph-type {
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .scoreboard {
   display: flex;
   flex-direction: column;
@@ -228,7 +339,7 @@
 .silhouette {
   display: block;
   mix-blend-mode: screen;
-  filter: invert(1);
+  filter: invert(1) contrast(1000%);
 }
 
 .pitcher-slot {

@@ -109,6 +109,23 @@ export default function SimulatorPage() {
   // pitch history
   const [pitches, setPitches] = useState([]); // each pitch: { plate_x, plate_z, pitchType, result }
   const [pitchIndex, setPitchIndex] = useState(-1); // -1 = "before pitch 1"
+
+  // real matchup history
+  const [realHistory, setRealHistory] = useState(null); // null = loading, { found, pitches, game_date }
+  useEffect(() => {
+    const pitcherId =
+      pitcher?.id ?? pitcher?.value ?? pitcher?.mlbam ?? pitcher?.mlbam_id;
+    const batterId =
+      batter?.id ?? batter?.value ?? batter?.mlbam ?? batter?.mlbam_id;
+    if (!pitcherId || !batterId) return;
+    setRealHistory(null); // reset to loading state on new matchup
+    fetch(
+      `/api/matchup-history?pitcher_mlbam=${pitcherId}&batter_mlbam=${batterId}`,
+    )
+      .then((r) => r.json())
+      .then((data) => setRealHistory(data))
+      .catch(() => setRealHistory({ found: false, pitches: [] }));
+  }, [pitcher, batter]);
   const [contextLabel, setContextLabel] = useState(null); // e.g. "matchup", "pitcher+global"
   const [lastPitchType, setLastPitchType] = useState("None");
   const [lastZone, setLastZone] = useState(0);
@@ -281,6 +298,7 @@ export default function SimulatorPage() {
 
   const zoneRef = useRef(null);
   const [zoneSize, setZoneSize] = useState({ w: 0, h: 0 });
+  const activeHistoryRowRef = useRef(null);
 
   // World bounds (feet) for the whole box (includes balls)
   const X_MIN = -2.0;
@@ -345,6 +363,13 @@ export default function SimulatorPage() {
     console.log("batter keys:", batter ? Object.keys(batter) : null);
     console.log("batter full:", batter);
   }, [batter]);
+
+  useEffect(() => {
+    activeHistoryRowRef.current?.scrollIntoView({
+      block: "nearest",
+      behavior: "smooth",
+    });
+  }, [pitchIndex]);
 
   return (
     <div className="sim-page">
@@ -430,6 +455,41 @@ export default function SimulatorPage() {
               </div>
             </div>
           </div>
+
+          {/* Pitch history */}
+          {pitches.length > 0 && (
+            <div className="panel pitch-history">
+              <div className="label" style={{ marginBottom: 8 }}>
+                At-Bat History
+              </div>
+              <div className="pitch-history-list">
+                {pitches.map((p, i) => {
+                  const isActive = i === pitchIndex;
+                  const result = String(p.result ?? "").trim();
+                  const isBall = result.toLowerCase().startsWith("ball");
+                  const isStrike = result.toLowerCase().startsWith("strike");
+                  return (
+                    <div
+                      key={i}
+                      ref={isActive ? activeHistoryRowRef : null}
+                      className={`pitch-history-row${isActive ? " active" : ""}`}
+                      onClick={() => setPitchIndex(i)}
+                    >
+                      <span className="ph-num">#{i + 1}</span>
+                      <span
+                        className={`ph-result ${isBall ? "ball" : isStrike ? "strike" : ""}`}
+                      >
+                        {result || "—"}
+                      </span>
+                      <span className="ph-type">
+                        {prettyPitchType(p.pitchType)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* CENTER */}
@@ -499,12 +559,33 @@ export default function SimulatorPage() {
                 }}
               />
 
-              {dot && (
-                <div
-                  className="pitch-dot"
-                  style={{ left: `${dot.left}px`, top: `${dot.top}px` }}
-                />
-              )}
+              {dot &&
+                (() => {
+                  const result = String(
+                    currentPitch?.result ?? "",
+                  ).toLowerCase();
+                  const dotColor = result.startsWith("ball")
+                    ? "#6dde7e"
+                    : result.startsWith("strike")
+                      ? "#f0c040"
+                      : "rgba(255,255,255,0.95)";
+                  const dotGlow = result.startsWith("ball")
+                    ? "0 0 10px rgba(109,222,126,0.6)"
+                    : result.startsWith("strike")
+                      ? "0 0 10px rgba(240,192,64,0.6)"
+                      : "0 0 10px rgba(255,255,255,0.25)";
+                  return (
+                    <div
+                      className="pitch-dot"
+                      style={{
+                        left: `${dot.left}px`,
+                        top: `${dot.top}px`,
+                        background: dotColor,
+                        boxShadow: dotGlow,
+                      }}
+                    />
+                  );
+                })()}
             </div>
 
             {/* under zone, BEFORE buttons */}
@@ -592,6 +673,43 @@ export default function SimulatorPage() {
                 {prettyPitchType(currentPitch?.pitchType)}
               </div>
             </div>
+          </div>
+
+          {/* Real matchup history */}
+          <div className="panel pitch-history">
+            <div className="label" style={{ marginBottom: 8 }}>
+              Last Real At-Bat
+              {realHistory?.game_date && (
+                <span className="hint" style={{ marginLeft: 6 }}>
+                  {realHistory.game_date}
+                </span>
+              )}
+            </div>
+
+            {/* Loading */}
+            {realHistory === null && <div className="ph-empty">Loading…</div>}
+
+            {/* No matchup found */}
+            {realHistory !== null && !realHistory.found && (
+              <div className="ph-empty">No previous matchup found</div>
+            )}
+
+            {/* Pitch list */}
+            {realHistory?.found && realHistory.pitches.length > 0 && (
+              <div className="pitch-history-list">
+                {realHistory.pitches.map((p, i) => (
+                  <div key={i} className="pitch-history-row">
+                    <span className="ph-num">#{p.pitch_number}</span>
+                    <span className={`ph-result ${p.result_cat}`}>
+                      {p.result_label}
+                    </span>
+                    <span className="ph-type">
+                      {prettyPitchType(p.pitch_type)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
