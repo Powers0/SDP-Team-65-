@@ -241,6 +241,9 @@ def _apply_user_context(serving_window, user_context: dict):
         # Zero out all previous_pitch_* columns, then set the matching one.
         prev_cols = [c for c in w.columns if c.startswith(_PREV_PITCH_PREFIX)]
         if prev_cols:
+            # Cast bool columns to float first to avoid pandas FutureWarning
+            # about setting incompatible dtype via .at[]
+            w[prev_cols] = w[prev_cols].astype(float)
             for c in prev_cols:
                 w.at[last_idx, c] = 0.0
 
@@ -324,8 +327,9 @@ def predict_next(
     sub_pt  = ensure_columns(serving_window.copy(), pt_features)
     sub_loc = ensure_columns(serving_window.copy(), loc_features)
 
-    Xpt  = pt_scaler_X.transform(sub_pt.values)[np.newaxis, :, :]
-    Xloc = loc_scaler_X.transform(sub_loc.values)[np.newaxis, :, :]
+    # Pass DataFrames (not .values) so the scaler sees the feature names it was fitted with
+    Xpt  = pt_scaler_X.transform(sub_pt)[np.newaxis, :, :]
+    Xloc = loc_scaler_X.transform(sub_loc)[np.newaxis, :, :]
 
     # Embedding IDs from encoders 
     p_le = artifacts["pitcher_le"]
