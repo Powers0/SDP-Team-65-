@@ -102,6 +102,9 @@ def build_repertoire_map(df, min_usage: float = 0.02):
         rep[int(pid)] = types
     return rep
 
+# Simple in-memory cache for matchup history (keyed by (pitcher_mlbam, batter_mlbam))
+_matchup_cache = {}
+
 app = Flask(__name__)
 CORS(
     app,
@@ -222,6 +225,118 @@ def api_predict():
     out = to_py(result)
     out["context_label"] = context_label
     return jsonify(out)
+
+@app.get("/api/matchup-history")
+def api_matchup_history():
+    """
+    Return the pitch-by-pitch sequence of the most recent real at-bat
+    between a given pitcher and batter, fetched from Statcast via pybaseball.
+
+    Query params:
+        pitcher_mlbam (int)
+        batter_mlbam  (int)
+    """
+    try:
+        pitcher_mlbam = int(request.args["pitcher_mlbam"])
+        batter_mlbam  = int(request.args["batter_mlbam"])
+    except (KeyError, ValueError):
+        return jsonify({"error": "pitcher_mlbam and batter_mlbam are required integers"}), 400
+
+    try:
+        from pybaseball import statcast_batter
+        import pandas as pd
+
+        cache_key = (pitcher_mlbam, batter_mlbam)
+
+        if cache_key in _matchup_cache:
+            df = _matchup_cache[cache_key]
+        else:
+            # Pull last ~3 seasons of batter data and filter by pitcher.
+            raw = statcast_batter("2021-01-01", "2025-12-31", batter_mlbam)
+            if raw is not None and not raw.empty:
+                df = raw[raw["pitcher"] == pitcher_mlbam].copy()
+            else:
+                df = pd.DataFrame()
+            _matchup_cache[cache_key] = df
+
+        if df is None or df.empty:
+            return jsonify({"pitches": [], "found": False})
+
+        # Keep only regular-season / post-season games (not spring training)
+        if "game_type" in df.columns:
+            df = df[df["game_type"].isin(["R", "F", "D", "L", "W"])]
+
+        if df.empty:
+            return jsonify({"pitches": [], "found": False})
+
+        # Sort chronologically and pick the most recent at-bat
+        sort_cols = [c for c in ["game_date", "at_bat_number", "pitch_number"] if c in df.columns]
+        df = df.sort_values(sort_cols)
+
+        # Get the last at-bat (highest at_bat_number in the most recent game)
+        last_game = df["game_date"].max()
+        df_game = df[df["game_date"] == last_game]
+        last_ab = df_game["at_bat_number"].max()
+        ab = df_game[df_game["at_bat_number"] == last_ab].sort_values("pitch_number")
+
+        # Build pitch list
+        pitches = []
+        for _, row in ab.iterrows():
+            # Classify result into our color buckets
+            desc = str(row.get("description", "") or "").lower()
+            events = str(row.get("events", "") or "").lower()
+            pitch_type = norm_pitch_type(str(row.get("pitch_type", "") or ""))
+
+            # Determine result category
+            if events and events not in ("nan", "none", ""):
+                # At-bat ending event
+                if any(k in events for k in ["single", "double", "triple", "home_run"]):
+                    result_cat = "hit"
+                    result_label = events.replace("_", " ").title()
+                elif any(k in events for k in ["strikeout", "field_out", "grounded_into", "force_out",
+                                                "fielders_choice", "double_play", "sac_fly", "sac_bunt"]):
+                    result_cat = "out"
+                    result_label = events.replace("_", " ").title()
+                elif any(k in events for k in ["walk", "hit_by_pitch", "intent_walk"]):
+                    result_cat = "ball"
+                    result_label = events.replace("_", " ").title()
+                else:
+                    result_cat = "other"
+                    result_label = events.replace("_", " ").title()
+            elif "foul" in desc:
+                result_cat = "foul"
+                result_label = "Foul"
+            elif any(k in desc for k in ["called_strike", "swinging_strike", "missed_bunt", "swinging_strike_blocked"]):
+                result_cat = "strike"
+                result_label = "Strike"
+            elif "ball" in desc or "blocked_ball" in desc or "pitchout" in desc:
+                result_cat = "ball"
+                result_label = "Ball"
+            elif "hit_into_play" in desc or "hit_into_play_score" in desc:
+                result_cat = "hit"
+                result_label = "In Play"
+            else:
+                result_cat = "other"
+                result_label = desc.replace("_", " ").title() or "—"
+
+            pitches.append({
+                "pitch_number": int(row["pitch_number"]) if "pitch_number" in row else len(pitches) + 1,
+                "pitch_type": pitch_type,
+                "result_cat": result_cat,
+                "result_label": result_label,
+                "balls": int(row["balls"]) if "balls" in row else None,
+                "strikes": int(row["strikes"]) if "strikes" in row else None,
+            })
+
+        game_date = str(last_game)[:10] if last_game else None
+
+        return jsonify({"pitches": pitches, "found": True, "game_date": game_date})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e), "pitches": [], "found": False}), 500
+
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=True)
