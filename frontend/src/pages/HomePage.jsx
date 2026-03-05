@@ -139,6 +139,20 @@ export default function HomePage() {
     [players.batters],
   );
 
+  const formatPitcherLabel = (option, { context }) => {
+    if (context === "value") return option.label;
+    return option.throws
+      ? `${option.label} (${option.throws})`
+      : option.label;
+  };
+
+  const formatBatterLabel = (option, { context }) => {
+    if (context === "value") return option.label;
+    return option.bats
+      ? `${option.label} (${option.bats})`
+      : option.label;
+  };
+
   const canPlay = Boolean(pitcher && batter);
 
   //  clamp score and inning
@@ -176,6 +190,7 @@ export default function HomePage() {
                 isClearable
                 isSearchable
                 styles={selectStyles}
+                formatOptionLabel={formatPitcherLabel}
               />
             </div>
 
@@ -189,6 +204,7 @@ export default function HomePage() {
                 isClearable
                 isSearchable
                 styles={selectStyles}
+                formatOptionLabel={formatBatterLabel}
               />
             </div>
           </div>
