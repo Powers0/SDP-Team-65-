@@ -369,8 +369,13 @@
    so the silhouette's shoulder-to-knee span always matches sz_top→sz_bot. */
 .batter-silhouette {
   position: absolute;
-  z-index: 1;
+  z-index: 4;
   pointer-events: none;
+  mix-blend-mode: normal;
+  filter: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Horizontal position is set via inline style using xToPx(X_MIN/X_MAX),
@@ -394,6 +399,8 @@
   overflow: visible;
 
   border-radius: 14px;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .zone-rect {
