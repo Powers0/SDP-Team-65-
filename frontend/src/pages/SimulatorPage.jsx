@@ -522,7 +522,13 @@ export default function SimulatorPage() {
                 (() => {
                   const fullH = zoneRect.height / 0.3;
                   const imgTop = zoneRect.top - fullH * 0.4;
-                  const isRight = batter?.bats === "R";
+                  const effectiveSide =
+                    batter?.bats === "S"
+                      ? pitcher?.throws === "L"
+                        ? "R"
+                        : "L"
+                      : batter?.bats;
+                  const isRight = effectiveSide === "R";
                   // Anchor the inner edge of the silhouette at the outer pitch boundary:
                   // right-handed batter → left edge at xToPx(X_MIN) (leftmost pitch)
                   // left-handed batter  → right edge at xToPx(X_MAX) (rightmost pitch)

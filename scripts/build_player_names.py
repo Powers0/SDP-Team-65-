@@ -89,7 +89,7 @@ batter_bats_map = (
     df.dropna(subset=["stand"])
       .assign(stand=lambda d: d["stand"].astype(str).str.upper().str.strip())
       .groupby("batter")["stand"]
-      .agg(lambda s: s.value_counts().index[0])
+      .agg(lambda s: "S" if {"L", "R"}.issubset(set(s.unique())) else s.value_counts().index[0])
       .to_dict()
 )
 
