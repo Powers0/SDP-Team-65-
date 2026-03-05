@@ -129,6 +129,12 @@ export default function SimulatorPage() {
   const [contextLabel, setContextLabel] = useState(null); // e.g. "matchup", "pitcher+global"
   const [lastPitchType, setLastPitchType] = useState("None");
   const [lastZone, setLastZone] = useState(0);
+
+  // Ball animation
+  const TRAVEL_MS = 450;
+  const shouldAnimateRef = useRef(false);
+  const animTimersRef = useRef([]);
+  const [animDot, setAnimDot] = useState(null);
   const pitchNum = pitchIndex >= 0 ? pitchIndex + 1 : "__";
 
   // current pitch (the one being viewed)
@@ -288,6 +294,7 @@ export default function SimulatorPage() {
     setLastPitchType(p.pitchType ?? "None");
     setLastZone(computePrevZone(px, pz, szBot, szTop));
 
+    shouldAnimateRef.current = true;
     setPitches((prev) => [...prev, p]);
     setPitchIndex((prev) => prev + 1);
   }
@@ -370,6 +377,52 @@ export default function SimulatorPage() {
       behavior: "smooth",
     });
   }, [pitchIndex]);
+
+  useEffect(() => {
+    animTimersRef.current.forEach(clearTimeout);
+    animTimersRef.current = [];
+
+    if (!dot) {
+      setAnimDot(null);
+      return;
+    }
+
+    const result = String(currentPitch?.result ?? "").toLowerCase();
+    const finalColor = result.startsWith("ball")
+      ? "#6dde7e"
+      : result.startsWith("strike")
+        ? "#f0c040"
+        : "rgba(255,255,255,0.95)";
+
+    // History navigation: jump straight to final position + color, no animation
+    if (!shouldAnimateRef.current) {
+      setAnimDot({ left: dot.left, top: dot.top, color: finalColor, traveling: false });
+      return;
+    }
+
+    shouldAnimateRef.current = false;
+
+    // Phase 1: place ball at pitcher release point (center-x, above zone-world)
+    const startX = zoneSize.w / 2;
+    const startY = -110;
+    setAnimDot({ left: startX, top: startY, color: "rgba(255,255,255,0.95)", traveling: false });
+
+    // Phase 2: one frame later, transition to plate position (still white)
+    const t1 = setTimeout(() => {
+      setAnimDot({ left: dot.left, top: dot.top, color: "rgba(255,255,255,0.95)", traveling: true });
+    }, 20);
+
+    // Phase 3: after travel completes, switch to landing color
+    const t2 = setTimeout(() => {
+      setAnimDot({ left: dot.left, top: dot.top, color: finalColor, traveling: false });
+    }, 20 + TRAVEL_MS);
+
+    animTimersRef.current = [t1, t2];
+
+    return () => {
+      animTimersRef.current.forEach(clearTimeout);
+    };
+  }, [dot]);
 
   return (
     <div className="sim-page">
@@ -507,7 +560,7 @@ export default function SimulatorPage() {
             {/* batter silhouette – rendered inside zone-world to avoid grid conflicts */}
 
             {/* zone */}
-            <div className="zone-world" ref={zoneRef} aria-label="Strike zone">
+            <div className="zone-world" ref={zoneRef} aria-label="Strike zone" tabIndex={-1}>
               {/* batter silhouette – anchored so the zone rect overlaps knees→shoulders.
                    SVG body proportions (approximate):
                      top of head  →  ~15% from top
@@ -565,16 +618,11 @@ export default function SimulatorPage() {
                 }}
               />
 
-              {dot &&
+              {animDot &&
                 (() => {
                   const result = String(
                     currentPitch?.result ?? "",
                   ).toLowerCase();
-                  const dotColor = result.startsWith("ball")
-                    ? "#6dde7e"
-                    : result.startsWith("strike")
-                      ? "#f0c040"
-                      : "rgba(255,255,255,0.95)";
                   const dotGlow = result.startsWith("ball")
                     ? "0 0 10px rgba(109,222,126,0.6)"
                     : result.startsWith("strike")
@@ -584,10 +632,15 @@ export default function SimulatorPage() {
                     <div
                       className="pitch-dot"
                       style={{
-                        left: `${dot.left}px`,
-                        top: `${dot.top}px`,
-                        background: dotColor,
-                        boxShadow: dotGlow,
+                        left: `${animDot.left}px`,
+                        top: `${animDot.top}px`,
+                        background: animDot.color,
+                        boxShadow: animDot.traveling
+                          ? "0 0 8px rgba(255,255,255,0.5)"
+                          : dotGlow,
+                        transition: animDot.traveling
+                          ? `left ${TRAVEL_MS}ms ease-in, top ${TRAVEL_MS}ms ease-in`
+                          : "background 200ms ease, box-shadow 200ms ease",
                       }}
                     />
                   );
