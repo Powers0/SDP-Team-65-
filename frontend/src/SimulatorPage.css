@@ -362,6 +362,8 @@
   max-height: var(--pitcherSilH);
   object-fit: contain;
   object-position: bottom center;
+  mix-blend-mode: normal;
+  filter: none;
 }
 
 /* Batter silhouette: absolutely positioned beside the zone-world box.

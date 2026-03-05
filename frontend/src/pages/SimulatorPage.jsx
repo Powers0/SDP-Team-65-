@@ -3,8 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "../SimulatorPage.css";
 
 // Silhouette assets
-import pitcherLeftB from "../assets/pitcher_left_b.svg";
-import pitcherRightB from "../assets/pitcher_right_b.svg";
+import pitcherLeftB from "../assets/pitcher_l_set.svg";
+import pitcherRightB from "../assets/pitcher_r_set.svg";
 import batterLeftB from "../assets/batter_left_b.svg";
 import batterRightB from "../assets/batter_right_b.svg";
 
@@ -220,16 +220,6 @@ export default function SimulatorPage() {
     }
   }
 
-  // demo generator (replace later with API call)
-  function makeDemoPitch() {
-    return {
-      plate_x: Math.random() * 3.6 - 1.8, // -1.8..1.8
-      plate_z: 1.2 + Math.random() * 2.8, // 1.2..4.0
-      pitchType: "FF",
-      result: Math.random() > 0.5 ? "Strike!" : "Ball",
-    };
-  }
-
   async function onNextPitch() {
     // if we're not at the end of history, just move forward
     if (pitchIndex < pitches.length - 1) {
@@ -396,7 +386,12 @@ export default function SimulatorPage() {
 
     // History navigation: jump straight to final position + color, no animation
     if (!shouldAnimateRef.current) {
-      setAnimDot({ left: dot.left, top: dot.top, color: finalColor, traveling: false });
+      setAnimDot({
+        left: dot.left,
+        top: dot.top,
+        color: finalColor,
+        traveling: false,
+      });
       return;
     }
 
@@ -405,16 +400,31 @@ export default function SimulatorPage() {
     // Phase 1: place ball at pitcher release point (center-x, above zone-world)
     const startX = zoneSize.w / 2;
     const startY = -110;
-    setAnimDot({ left: startX, top: startY, color: "rgba(255,255,255,0.95)", traveling: false });
+    setAnimDot({
+      left: startX,
+      top: startY,
+      color: "rgba(255,255,255,0.95)",
+      traveling: false,
+    });
 
     // Phase 2: one frame later, transition to plate position (still white)
     const t1 = setTimeout(() => {
-      setAnimDot({ left: dot.left, top: dot.top, color: "rgba(255,255,255,0.95)", traveling: true });
+      setAnimDot({
+        left: dot.left,
+        top: dot.top,
+        color: "rgba(255,255,255,0.95)",
+        traveling: true,
+      });
     }, 20);
 
     // Phase 3: after travel completes, switch to landing color
     const t2 = setTimeout(() => {
-      setAnimDot({ left: dot.left, top: dot.top, color: finalColor, traveling: false });
+      setAnimDot({
+        left: dot.left,
+        top: dot.top,
+        color: finalColor,
+        traveling: false,
+      });
     }, 20 + TRAVEL_MS);
 
     animTimersRef.current = [t1, t2];
@@ -560,7 +570,12 @@ export default function SimulatorPage() {
             {/* batter silhouette – rendered inside zone-world to avoid grid conflicts */}
 
             {/* zone */}
-            <div className="zone-world" ref={zoneRef} aria-label="Strike zone" tabIndex={-1}>
+            <div
+              className="zone-world"
+              ref={zoneRef}
+              aria-label="Strike zone"
+              tabIndex={-1}
+            >
               {/* batter silhouette – anchored so the zone rect overlaps knees→shoulders.
                    SVG body proportions (approximate):
                      top of head  →  ~15% from top
