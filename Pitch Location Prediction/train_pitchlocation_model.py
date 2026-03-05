@@ -8,6 +8,17 @@ from pitchlocation_architecture import build_pitch_location_model
 import os
 import tensorflow as tf
 
+import tensorflow as tf
+
+def gaussian_nll(y_true, y_pred):
+    mu = y_pred[:, :2]
+    log_var = y_pred[:, 2:]
+    log_var = tf.clip_by_value(log_var, -10, 10)
+    inv_var = tf.exp(-log_var)
+    sq = tf.square(y_true - mu)
+    nll = 0.5 * (log_var + sq * inv_var)
+    return tf.reduce_mean(tf.reduce_sum(nll, axis=1))
+
 ART = "artifacts/"
 
 print("Loading artifacts...")

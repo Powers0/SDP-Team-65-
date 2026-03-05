@@ -9,9 +9,24 @@ from swingtake_architecture import build_swingtake_model
 
 ART_PATH = "artifacts/"
 
+import tensorflow as tf
 
-PITCHLOC_ART_DIR = "../Pitch Location Prediction/artifacts/"
-PITCHLOC_MODEL_PATH = "../Pitch Location Prediction/artifacts/pitch_location_model.keras"
+def gaussian_nll(y_true, y_pred):
+    mu = y_pred[:, :2]
+    log_var = y_pred[:, 2:]
+    log_var = tf.clip_by_value(log_var, -10, 10)
+    inv_var = tf.exp(-log_var)
+    sq = tf.square(y_true - mu)
+    nll = 0.5 * (log_var + sq * inv_var)
+    return tf.reduce_mean(tf.reduce_sum(nll, axis=1))
+
+
+import os
+HERE = os.path.dirname(os.path.abspath(__file__))                # .../Offensive Models/swingtake
+REPO_ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))      # .../SDP-Team-65-
+
+PITCHLOC_ART_DIR = os.path.join(REPO_ROOT, "Pitch Location Prediction", "artifacts")
+PITCHLOC_MODEL_PATH = os.path.join(PITCHLOC_ART_DIR, "pitch_location_model.keras")
 
 def engineered_features_from_loc(loc_xy):
     """
@@ -47,8 +62,8 @@ if __name__ == "__main__":
     pitchtype_dim = PT_train.shape[1]
 
     print("Loading pitch-location model + scaler_Y...")
-    loc_model = load_model(PITCHLOC_MODEL_PATH)
-    scaler_Y = pickle.load(open(PITCHLOC_ART_DIR + "scaler_Y.pkl", "rb"))
+    loc_model = load_model(PITCHLOC_MODEL_PATH, custom_objects={"gaussian_nll": gaussian_nll})
+    scaler_Y = pickle.load(open(os.path.join(PITCHLOC_ART_DIR, "scaler_Y.pkl"), "rb"))
 
 
     """SHARED_DIR = "artifacts/"  # adjust if needed
@@ -72,8 +87,8 @@ if __name__ == "__main__":
     loc_test_scaled  = loc_model.predict([X_test,  P_test,  B_test,  PT_test],  batch_size=256, verbose=1)
 
     # inverse-transform to real plate_x and plate_z
-    loc_train = scaler_Y.inverse_transform(loc_train_scaled)
-    loc_test  = scaler_Y.inverse_transform(loc_test_scaled)
+    loc_train = scaler_Y.inverse_transform(loc_train_scaled[:, :2])
+    loc_test  = scaler_Y.inverse_transform(loc_test_scaled[:, :2])
 
     # build extra features from predicted location
     extra_train = engineered_features_from_loc(loc_train)
@@ -85,7 +100,7 @@ if __name__ == "__main__":
     extra_train_s = extra_scaler.fit_transform(extra_train)
     extra_test_s  = extra_scaler.transform(extra_test)
 
-    pickle.dump(extra_scaler, open(ART + "extra_scaler.pkl", "wb"))
+    pickle.dump(extra_scaler, open(ART_PATH + "extra_scaler.pkl", "wb"))
 
     # build and train swing/take model
     model = build_swingtake_model(pitch_type_dim=pitchtype_dim, extra_dim=extra_dim)
