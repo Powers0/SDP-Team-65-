@@ -68,7 +68,7 @@ function computeCountFromPitches(pitches, upToIndexInclusive = null) {
   for (let i = 0; i < end; i += 1) {
     const r = String(pitches[i]?.result ?? "").toLowerCase();
     if (r.startsWith("ball")) balls += 1;
-    if (r.startsWith("strike")) strikes += 1;
+    if (r.toLowerCase().includes("strike")) strikes += 1;
     if (balls > 3) balls = 3;
     if (strikes > 2) strikes = 2;
   }
@@ -260,6 +260,7 @@ export default function SimulatorPage() {
             api.pitch ??
             api.pt ??
             "FF",
+          swingProb: api.swing_prob ?? null,
           // We derive Ball/Strike from the predicted location + hitter zone.
           //
           result: null,
@@ -275,10 +276,11 @@ export default function SimulatorPage() {
     const pz = Number(p?.plate_z);
     const inZone = isInStrikeZone(px, pz, szBot, szTop);
 
-    // Only overwrite if we don't already have a usable string.
-    const existing = String(p?.result ?? "").trim();
-    if (!existing) {
-      p.result = inZone ? "Strike" : "Ball";
+    const swings = Math.random() < (p.swingProb ?? 0.5);
+    if (swings) {
+      p.result = "Swinging Strike";
+    } else {
+      p.result = inZone ? "Called Strike" : "Ball";
     }
 
     setLastPitchType(p.pitchType ?? "None");
@@ -380,7 +382,7 @@ export default function SimulatorPage() {
     const result = String(currentPitch?.result ?? "").toLowerCase();
     const finalColor = result.startsWith("ball")
       ? "#6dde7e"
-      : result.startsWith("strike")
+      : result.toLowerCase().includes("strike")
         ? "#f0c040"
         : "rgba(255,255,255,0.95)";
 
@@ -530,7 +532,7 @@ export default function SimulatorPage() {
                   const isActive = i === pitchIndex;
                   const result = String(p.result ?? "").trim();
                   const isBall = result.toLowerCase().startsWith("ball");
-                  const isStrike = result.toLowerCase().startsWith("strike");
+                  const isStrike = result.toLowerCase().includes("strike");
                   return (
                     <div
                       key={i}
@@ -640,7 +642,7 @@ export default function SimulatorPage() {
                   ).toLowerCase();
                   const dotGlow = result.startsWith("ball")
                     ? "0 0 10px rgba(109,222,126,0.6)"
-                    : result.startsWith("strike")
+                    : result.toLowerCase().includes("strike")
                       ? "0 0 10px rgba(240,192,64,0.6)"
                       : "0 0 10px rgba(255,255,255,0.25)";
                   return (

@@ -295,6 +295,7 @@ def predict_next(
 
     pitchtype_model = artifacts["pitchtype_model"]
     location_model  = artifacts["location_model"]
+    swingtake_model = artifacts["swingtake_model"]
 
     serving_window = _apply_user_context(serving_window, user_context or {})
 
@@ -439,6 +440,7 @@ def predict_next(
     samp_x = float(np.clip(samp_x, PLATE_X_BOUNDS[0], PLATE_X_BOUNDS[1]))
     samp_z = float(np.clip(samp_z, PLATE_Z_BOUNDS[0], PLATE_Z_BOUNDS[1]))
 
+
     # Context for UI (last pitch state is the “current” state)
     last = serving_window.iloc[-1]
     context = {}
@@ -451,6 +453,25 @@ def predict_next(
                 v = v.item()
 
             context[k] = v
+    
+    #build one hot for swing/take
+    onehot = np.zeros(len(artifacts["pitch_types"]))
+    onehot[artifacts["pitch_types"].index(str(pt_pred))] = 1.0
+    onehot = onehot.reshape(1, -1)
+
+    #build 4 location features + scale
+    dist_to_center = np.sqrt(samp_x**2 + (samp_z - 2.5)**2)
+    is_strike = 1.0 if (abs(samp_x) <= 0.83 and samp_z >= 1.5 and samp_z <= 3.5) else 0.0
+
+    loc_raw = np.array([[samp_x, samp_z, dist_to_center, is_strike]])
+    loc_scaled = artifacts["loc_scaler"].transform(loc_raw)
+
+    #Make swing/take prediction
+    swing_take_probs = swingtake_model.predict([onehot, loc_scaled], verbose=0)
+    swing_prob = float(swing_take_probs[0][0])
+
+
+
 
     return {
         "pitch_type": str(pt_pred),
@@ -459,5 +480,6 @@ def predict_next(
         "pitch_type_probs": {str(artifacts["pt_label_enc"].classes_[i]): float(pt_probs[i]) for i in range(len(pt_probs))},
         "location": {"plate_x": float(samp_x), "plate_z": float(samp_z)},
         "location_mean": {"plate_x": float(mean_x), "plate_z": float(mean_z)},
-        "context": context
+        "context": context,
+        "swing_prob": swing_prob
     }
