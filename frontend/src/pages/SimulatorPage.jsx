@@ -7,6 +7,8 @@ import pitcherLeftB from "../assets/pitcher_l_set.svg";
 import pitcherRightB from "../assets/pitcher_r_set.svg";
 import batterLeftB from "../assets/batter_left_b.svg";
 import batterRightB from "../assets/batter_right_b.svg";
+import batterLeftSwing from "../assets/batter_l_swing.svg";
+import batterRightSwing from "../assets/batter_r_swing.svg";
 
 // Pitch type code -> human readable label
 const PITCH_TYPE_NAMES = {
@@ -91,6 +93,7 @@ export default function SimulatorPage() {
   }
 
   const { pitcher, batter, outs, offScore, defScore, inning, bases } = state;
+  const [isSwinging, setIsSwinging] = useState(false);
 
   useEffect(() => {
     const pitcherId =
@@ -286,6 +289,8 @@ export default function SimulatorPage() {
     setLastPitchType(p.pitchType ?? "None");
     setLastZone(computePrevZone(px, pz, szBot, szTop));
 
+    setIsSwinging(false);
+
     shouldAnimateRef.current = true;
     setPitches((prev) => [...prev, p]);
     setPitchIndex((prev) => prev + 1);
@@ -427,6 +432,7 @@ export default function SimulatorPage() {
         color: finalColor,
         traveling: false,
       });
+      setIsSwinging(result.includes("swinging"));
     }, 20 + TRAVEL_MS);
 
     animTimersRef.current = [t1, t2];
@@ -610,12 +616,22 @@ export default function SimulatorPage() {
                   return (
                     <img
                       className={`silhouette batter-silhouette ${isRight ? "batter-right" : "batter-left"}`}
-                      src={isRight ? batterRightB : batterLeftB}
+                      src={
+                        isSwinging
+                          ? isRight
+                            ? batterRightSwing
+                            : batterLeftSwing
+                          : isRight
+                            ? batterRightB
+                            : batterLeftB
+                      }
                       alt="Batter silhouette"
                       style={{
                         top: `${imgTop}px`,
                         height: `${fullH}px`,
-                        width: "auto",
+                        width: `${Math.round(fullH * (1000 / 1939))}px`,
+                        objectFit: "contain",
+                        objectPosition: isRight ? "right bottom" : "left bottom",
                         maxHeight: "none",
                         ...(isRight
                           ? { right: `${zoneSize.w - plateLeftPx}px` }
