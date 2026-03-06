@@ -3,9 +3,10 @@ from tensorflow.keras.models import load_model
 import json
 import os
 
-def load_all(PT_DIR, LOC_DIR, SHARED_DIR, gmm_path: str | None = None):
+def load_all(PT_DIR, LOC_DIR, ST_DIR, SHARED_DIR, gmm_path: str | None = None):
     pitchtype_model = load_model(PT_DIR + "pitchtype_model.keras")
     location_model  = load_model(LOC_DIR + "pitch_location_model.keras", compile=False)
+    swingtake_model = load_model(ST_DIR + "swingtake_model.keras")
 
     pt_features  = pickle.load(open(PT_DIR + "features.pkl", "rb"))
     pt_scaler_X  = pickle.load(open(PT_DIR + "scaler.pkl", "rb"))
@@ -17,6 +18,10 @@ def load_all(PT_DIR, LOC_DIR, SHARED_DIR, gmm_path: str | None = None):
 
     pitcher_le = pickle.load(open(SHARED_DIR + "pitcher_le.pkl", "rb"))
     batter_le  = pickle.load(open(SHARED_DIR + "batter_le.pkl", "rb"))
+
+    
+    loc_scaler = pickle.load(open(ST_DIR + "loc_scaler.pkl", "rb"))
+    pitch_types = pickle.load(open(ST_DIR + "pitch_types.pkl", "rb"))
 
     names_path = os.path.join(SHARED_DIR, "player_names.json")
     with open(names_path, "r") as f:
@@ -47,5 +52,8 @@ def load_all(PT_DIR, LOC_DIR, SHARED_DIR, gmm_path: str | None = None):
         "pitcher_le": pitcher_le,
         "batter_le": batter_le,
         "player_names": player_names,
+        "swingtake_model": swingtake_model,
+        "loc_scaler": loc_scaler,
+        "pitch_types": pitch_types,
         "location_gmm": location_gmm,   # dict of {pitch_type: GaussianMixture} or None
     }
