@@ -106,10 +106,10 @@ def build_repertoire_map(df, min_usage: float = 0.02):
 _matchup_cache = {}
 
 app = Flask(__name__)
-CORS(
-    app,
-    resources={r"/api/*": {"origins": "http://localhost:5173"}},
-)
+# Allow all origins so the app works both locally (localhost:5173) and on the VM.
+# When served behind nginx on the VM, the frontend and API share the same origin
+# anyway, so this is safe for a demo/academic deployment.
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 print("Loading artifacts/models...")
 ART = load_all(PT_DIR, LOC_DIR, ST_DIR, SHARED_DIR, gmm_path=LOCATION_GMM_PATH)
@@ -339,4 +339,4 @@ def api_matchup_history():
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
