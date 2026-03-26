@@ -1,3 +1,4 @@
+from __future__ import annotations
 import numpy as np
 
 # Serving table feature columns for previous pitch one-hot usually look like:
