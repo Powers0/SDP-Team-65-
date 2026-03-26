@@ -1,3 +1,4 @@
+from __future__ import annotations
 import pickle
 from tensorflow.keras.models import load_model
 import json
