@@ -2,12 +2,15 @@ import pandas as pd
 import numpy as np
 import pickle
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+
 
 TEST_SIZE = 0.15
 RANDOM_SEED = 42
 
 CSV_DIR = "../../csv data"
 ARTIFACTS = "artifacts/"
+SHARED_DIR = "../../artifacts/shared/"
 
 YEARS = [2021, 2022, 2023, 2024]
 
@@ -90,6 +93,17 @@ def build_context_features(df):
     return df[cols].values.astype(float), cols
 
 
+
+def build_player_ids(df):
+    pitcher_le = pickle.load(open(SHARED_DIR + "pitcher_le.pkl", "rb"))
+    batter_le  = pickle.load(open(SHARED_DIR + "batter_le.pkl", "rb"))
+
+    p_ids = df["pitcher"].map(lambda x: pitcher_le.transform([x])[0] if x in pitcher_le.classes_ else 0).values
+    b_ids = df["batter"].map(lambda x: batter_le.transform([x])[0] if x in batter_le.classes_ else 0).values
+    return p_ids.astype(np.int32), b_ids.astype(np.int32), pitcher_le, batter_le
+
+
+
 if __name__ == "__main__":
     print("Loading statcast data...")
     df = load_statcast()
@@ -101,18 +115,21 @@ if __name__ == "__main__":
     PT = build_pitch_type_onehot(df)
     LOC = build_location_features(df)
     CTX, ctx_feature_names = build_context_features(df)
+    P, B, pitcher_le, batter_le = build_player_ids(df)
+
     y = df["contact_outcome"].values.astype(int)
 
     print(f"Dataset size: {len(y)} swings")
     print(f"Miss: {(y==0).mean():.3f}  Foul: {(y==1).mean():.3f}  Fair: {(y==2).mean():.3f}")
 
     print("Train/test split...")
-    PT_train, PT_test, LOC_train, LOC_test, CTX_train, CTX_test, y_train, y_test = train_test_split(
-        PT, LOC, CTX, y,
+    PT_train, PT_test, LOC_train, LOC_test, CTX_train, CTX_test, P_train, P_test, B_train, B_test, y_train, y_test = train_test_split(
+        PT, LOC, CTX, P, B, y,
         test_size=TEST_SIZE,
         random_state=RANDOM_SEED,
         shuffle=True
 )
+
 
     print("Saving artifacts...")
     np.save(ARTIFACTS + "PT_train.npy", PT_train)
@@ -123,6 +140,11 @@ if __name__ == "__main__":
     np.save(ARTIFACTS + "y_test.npy",   y_test)
     np.save(ARTIFACTS + "CTX_train.npy", CTX_train)
     np.save(ARTIFACTS + "CTX_test.npy",  CTX_test)
+    np.save(ARTIFACTS + "P_train.npy", P_train)
+    np.save(ARTIFACTS + "P_test.npy",  P_test)
+    np.save(ARTIFACTS + "B_train.npy", B_train)
+    np.save(ARTIFACTS + "B_test.npy",  B_test)
+
     pickle.dump(ctx_feature_names, open(ARTIFACTS + "ctx_features.pkl", "wb"))
 
 
