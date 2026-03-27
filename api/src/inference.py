@@ -330,7 +330,12 @@ def predict_next(
     sub_loc = ensure_columns(serving_window.copy(), loc_features)
 
     # Pass DataFrames (not .values) so the scaler sees the feature names it was fitted with
-    Xpt  = pt_scaler_X.transform(sub_pt)[np.newaxis, :, :]
+    PT_CONTINUOUS = ["balls", "strikes", "outs_when_up", "inning", "score_diff", "previous_zone"]
+    sub_pt_scaled = sub_pt.copy()
+    sub_pt_scaled[PT_CONTINUOUS] = pt_scaler_X.transform(sub_pt[PT_CONTINUOUS].values)
+    Xpt = sub_pt_scaled.values.astype(np.float32)[np.newaxis, :, :]
+
+
     Xloc = loc_scaler_X.transform(sub_loc)[np.newaxis, :, :]
 
     # Embedding IDs from encoders 
@@ -468,8 +473,24 @@ def predict_next(
     loc_scaled = artifacts["loc_scaler"].transform(loc_raw)
 
     #Make swing/take prediction
-    swing_take_probs = swingtake_model.predict([onehot, loc_scaled], verbose=0)
+    # Build context features for swing/take (12 features: 5 continuous + 7 binary)
+    ST_CONTINUOUS = ["balls", "strikes", "outs_when_up", "inning", "score_diff"]
+    ST_BINARY = ["on_1b", "on_2b", "on_3b", "stand_L", "stand_R", "p_throws_L", "p_throws_R"]
+
+    ctx_vals = []
+    for col in ST_CONTINUOUS + ST_BINARY:
+        ctx_vals.append(float(last_row[col]) if col in last_row.index else 0.0)
+
+    ctx_arr = np.array([ctx_vals], dtype=np.float32)
+    ctx_arr[:, :len(ST_CONTINUOUS)] = artifacts["ctx_scaler"].transform(ctx_arr[:, :len(ST_CONTINUOUS)])
+
+    st_p_id = np.array([[p_idx]], dtype=np.int32)
+    st_b_id = np.array([[b_idx]], dtype=np.int32)
+
+    swing_take_probs = swingtake_model.predict([onehot, loc_scaled, ctx_arr, st_p_id, st_b_id], verbose=0)
+
     swing_prob = float(swing_take_probs[0][0])
+
 
 
 

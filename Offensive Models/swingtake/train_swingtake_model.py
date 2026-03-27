@@ -3,6 +3,7 @@ import pickle
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.preprocessing import StandardScaler
 from tensorflow.keras.callbacks import EarlyStopping
+import tensorflow as tf
 
 from swingtake_architecture import build_swingtake_model
 
@@ -19,6 +20,18 @@ if __name__ == "__main__":
     y_train   = np.load(ART_PATH + "y_train.npy")
     y_test    = np.load(ART_PATH + "y_test.npy")
 
+    PIT_train = np.load(ART_PATH + "PIT_train.npy")
+    PIT_test  = np.load(ART_PATH + "PIT_test.npy")
+    BAT_train = np.load(ART_PATH + "BAT_train.npy")
+    BAT_test  = np.load(ART_PATH + "BAT_test.npy")
+
+    pitcher_le = pickle.load(open("../../artifacts/shared/pitcher_le.pkl", "rb"))
+    batter_le  = pickle.load(open("../../artifacts/shared/batter_le.pkl", "rb"))
+
+    num_pitchers = len(pitcher_le.classes_)
+    num_batters  = len(batter_le.classes_)
+
+
     pitchtype_dim = PT_train.shape[1]
     loc_dim       = LOC_train.shape[1]
     ctx_dim       = CTX_train.shape[1]
@@ -28,20 +41,33 @@ if __name__ == "__main__":
     LOC_test_s  = loc_scaler.transform(LOC_test)
     pickle.dump(loc_scaler, open(ART_PATH + "loc_scaler.pkl", "wb"))
 
+    n_continuous = pickle.load(open(ART_PATH + "ctx_n_continuous.pkl", "rb"))
+
     ctx_scaler = StandardScaler()
-    CTX_train_s = ctx_scaler.fit_transform(CTX_train)
-    CTX_test_s  = ctx_scaler.transform(CTX_test)
+    CTX_train_s = CTX_train.copy()
+    CTX_test_s  = CTX_test.copy()
+    CTX_train_s[:, :n_continuous] = ctx_scaler.fit_transform(CTX_train[:, :n_continuous])
+    CTX_test_s[:, :n_continuous]  = ctx_scaler.transform(CTX_test[:, :n_continuous])
     pickle.dump(ctx_scaler, open(ART_PATH + "ctx_scaler.pkl", "wb"))
 
-    model = build_swingtake_model(pitch_type_dim=pitchtype_dim, loc_dim=loc_dim, ctx_dim=ctx_dim)
-    model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
+
+    model = build_swingtake_model(
+    pitch_type_dim=pitchtype_dim,
+    loc_dim=loc_dim,
+    ctx_dim=ctx_dim,
+    num_pitchers=num_pitchers,
+    num_batters=num_batters
+)
+
+    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001, clipnorm=1.0), loss="binary_crossentropy", metrics=["accuracy"])
+
     model.summary()
 
     early = EarlyStopping(monitor="val_loss", patience=3, restore_best_weights=True)
 
     history = model.fit(
-        [PT_train, LOC_train_s, CTX_train_s],
-        y_train,
+        [PT_train, LOC_train_s, CTX_train_s, PIT_train, BAT_train],
+        y_train, 
         validation_split=0.2,
         epochs=20,
         batch_size=256,
@@ -50,7 +76,7 @@ if __name__ == "__main__":
     )
 
     print("\nEvaluating...")
-    probs = model.predict([PT_test, LOC_test_s, CTX_test_s], batch_size=256, verbose=0).reshape(-1)
+    probs = model.predict([PT_test, LOC_test_s, CTX_test_s, PIT_test, BAT_test], batch_size=256, verbose=0).reshape(-1)
     preds = (probs >= 0.5).astype(int)
 
     print(classification_report(y_test, preds, zero_division=0))

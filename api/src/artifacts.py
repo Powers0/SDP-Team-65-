@@ -23,6 +23,8 @@ def load_all(PT_DIR, LOC_DIR, ST_DIR, SHARED_DIR, gmm_path: str | None = None):
     
     loc_scaler = pickle.load(open(ST_DIR + "loc_scaler.pkl", "rb"))
     pitch_types = pickle.load(open(ST_DIR + "pitch_types.pkl", "rb"))
+    ctx_scaler = pickle.load(open(ST_DIR + "ctx_scaler.pkl", "rb"))
+
 
     names_path = os.path.join(SHARED_DIR, "player_names.json")
     with open(names_path, "r") as f:
@@ -57,4 +59,6 @@ def load_all(PT_DIR, LOC_DIR, ST_DIR, SHARED_DIR, gmm_path: str | None = None):
         "loc_scaler": loc_scaler,
         "pitch_types": pitch_types,
         "location_gmm": location_gmm,   # dict of {pitch_type: GaussianMixture} or None
+        "ctx_scaler": ctx_scaler,
+
     }

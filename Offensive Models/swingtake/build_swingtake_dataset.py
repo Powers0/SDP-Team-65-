@@ -8,6 +8,8 @@ RANDOM_SEED = 42
 
 CSV_DIR = "../../csv data"
 ARTIFACTS = "artifacts/"
+SHARED_DIR = "../../artifacts/shared/"
+
 
 YEARS = [2021, 2022, 2023, 2024]
 
@@ -40,7 +42,7 @@ def preprocess(df):
         "plate_x", "plate_z", "stand", "p_throws",
         "pitch_type", "description",
         "balls", "strikes", "outs_when_up", "inning",
-        "bat_score", "fld_score",
+        "bat_score", "fld_score", "batter", "pitcher"
     ]
 
     df = df.dropna(subset=needed)
@@ -89,9 +91,13 @@ def build_location_features(df):
 def build_context_features(df):
     stand_cols   = [c for c in df.columns if c.startswith("stand_")]
     pthrows_cols = [c for c in df.columns if c.startswith("p_throws_")]
-    cols = ["balls", "strikes", "outs_when_up", "inning", "score_diff",
-            "on_1b", "on_2b", "on_3b"] + stand_cols + pthrows_cols
-    return df[cols].values.astype(float), cols
+    
+    continuous_cols = ["balls", "strikes", "outs_when_up", "inning", "score_diff"]
+    binary_cols = ["on_1b", "on_2b", "on_3b"] + stand_cols + pthrows_cols
+    
+    cols = continuous_cols + binary_cols
+    return df[cols].values.astype(float), cols, len(continuous_cols)
+
 
 
 if __name__ == "__main__":
@@ -101,12 +107,23 @@ if __name__ == "__main__":
     print("Preprocessing...")
     df = preprocess(df)
 
+    pitcher_le = pickle.load(open(SHARED_DIR + "pitcher_le.pkl", "rb"))
+    batter_le  = pickle.load(open(SHARED_DIR + "batter_le.pkl", "rb"))
+
+    df = df[df["pitcher"].astype(int).isin(pitcher_le.classes_)]
+    df = df[df["batter"].astype(int).isin(batter_le.classes_)]
+
+    PIT = pitcher_le.transform(df["pitcher"].astype(int)).reshape(-1, 1)
+    BAT = batter_le.transform(df["batter"].astype(int)).reshape(-1, 1)
+
+
     print("Building pitch-type one-hots from actual Statcast pitch_type...")
     PT = build_pitch_type_onehot(df)  # (N, pitch_type_dim)
 
     print("Building location features from actual plate_x / plate_z...")
     LOC = build_location_features(df)  # (N, 4)
-    CTX, ctx_feature_names = build_context_features(df)
+    CTX, ctx_feature_names, n_continuous = build_context_features(df)
+
 
 
     y = df["swing"].values.astype(int)
@@ -114,12 +131,13 @@ if __name__ == "__main__":
     print(f"Dataset size: {len(y)} pitches  |  swings: {y.mean():.3f}")
 
     print("Train/test split...")
-    PT_train, PT_test, LOC_train, LOC_test, CTX_train, CTX_test, y_train, y_test = train_test_split(
-        PT, LOC, CTX, y,
+    PT_train, PT_test, LOC_train, LOC_test, CTX_train, CTX_test, PIT_train, PIT_test, BAT_train, BAT_test, y_train, y_test = train_test_split(
+        PT, LOC, CTX, PIT, BAT, y,
         test_size=TEST_SIZE,
         random_state=RANDOM_SEED,
         shuffle=True
 )
+
 
 
     print("Saving artifacts...")
@@ -131,6 +149,13 @@ if __name__ == "__main__":
     np.save(ARTIFACTS + "y_test.npy",   y_test)
     np.save(ARTIFACTS + "CTX_train.npy", CTX_train)
     np.save(ARTIFACTS + "CTX_test.npy",  CTX_test)
+    np.save(ARTIFACTS + "PIT_train.npy", PIT_train)
+    np.save(ARTIFACTS + "PIT_test.npy",  PIT_test)
+    np.save(ARTIFACTS + "BAT_train.npy", BAT_train)
+    np.save(ARTIFACTS + "BAT_test.npy",  BAT_test)
+    pickle.dump(n_continuous, open(ARTIFACTS + "ctx_n_continuous.pkl", "wb"))
+
+
     pickle.dump(ctx_feature_names, open(ARTIFACTS + "ctx_features.pkl", "wb"))
 
 

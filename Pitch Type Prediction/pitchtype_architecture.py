@@ -1,7 +1,7 @@
 from tensorflow.keras.layers import Input, Embedding, LSTM, Dense, Dropout, Concatenate
 from tensorflow.keras.models import Model
 
-def build_pitch_model(num_features, num_pitchers, num_batters, embed_dim=8, num_classes=7):
+def build_pitch_model(num_features, num_pitchers, num_batters, embed_dim=16, num_classes=7):
     f_in = Input(shape=(5, num_features))
     p_in = Input(shape=(5,))
     b_in = Input(shape=(5,))
