@@ -3,8 +3,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "../SimulatorPage.css";
 
 // Silhouette assets
-import pitcherLeftB from "../assets/pitcher_l_set.svg";
-import pitcherRightB from "../assets/pitcher_r_set.svg";
+import pitcherLeftSet from "../assets/pitcher_l_set.svg";
+import pitcherRightSet from "../assets/pitcher_r_set.svg";
+import pitcherLeftWindup from "../assets/pitcher_left_b.svg";
+import pitcherRightWindup from "../assets/pitcher_right_b.svg";
+import pitcherLeftThrow from "../assets/Pitcher_throwing_left.svg";
+import pitcherRightThrow from "../assets/Pitcher_throwing_right.svg";
 import batterLeftB from "../assets/batter_left_b.svg";
 import batterRightB from "../assets/batter_right_b.svg";
 import batterLeftSwing from "../assets/batter_l_swing.svg";
@@ -94,6 +98,7 @@ export default function SimulatorPage() {
 
   const { pitcher, batter, outs, offScore, defScore, inning, bases } = state;
   const [isSwinging, setIsSwinging] = useState(false);
+  const [pitcherPhase, setPitcherPhase] = useState("set"); // "set" | "windup" | "throwing"
 
   useEffect(() => {
     const pitcherId =
@@ -223,7 +228,15 @@ export default function SimulatorPage() {
     }
   }
 
+  function animatePitcher() {
+    setPitcherPhase("windup");
+    setTimeout(() => {
+      setPitcherPhase("throwing");
+    }, 500);
+  }
+
   async function onNextPitch() {
+    animatePitcher();
     // if we're not at the end of history, just move forward
     if (pitchIndex < pitches.length - 1) {
       setPitchIndex(pitchIndex + 1);
@@ -399,6 +412,7 @@ export default function SimulatorPage() {
         color: finalColor,
         traveling: false,
       });
+      setPitcherPhase("set");
       return;
     }
 
@@ -433,6 +447,7 @@ export default function SimulatorPage() {
         traveling: false,
       });
       setIsSwinging(result.includes("swinging"));
+      setPitcherPhase("set");
     }, 20 + TRAVEL_MS);
 
     animTimersRef.current = [t1, t2];
@@ -570,8 +585,34 @@ export default function SimulatorPage() {
             <div className="pitcher-slot">
               <img
                 className="silhouette pitcher-silhouette"
-                src={pitcher?.throws === "L" ? pitcherLeftB : pitcherRightB}
+                src={
+                  pitcher?.throws === "L"
+                    ? pitcherPhase === "windup"
+                      ? pitcherLeftWindup
+                      : pitcherPhase === "throwing"
+                        ? pitcherLeftThrow
+                        : pitcherLeftSet
+                    : pitcherPhase === "windup"
+                      ? pitcherRightWindup
+                      : pitcherPhase === "throwing"
+                        ? pitcherRightThrow
+                        : pitcherRightSet
+                }
                 alt="Pitcher silhouette"
+                style={{
+                  ...(pitcherPhase !== "set"
+                    ? {
+                        filter: "invert(1) contrast(1000%)",
+                        mixBlendMode: "screen",
+                      }
+                    : {}),
+                  height:
+                    pitcherPhase === "windup"
+                      ? "180px"
+                      : pitcherPhase === "throwing"
+                        ? "120px"
+                        : undefined,
+                }}
               />
             </div>
 
@@ -631,7 +672,9 @@ export default function SimulatorPage() {
                         height: `${fullH}px`,
                         width: `${Math.round(fullH * (1000 / 1939))}px`,
                         objectFit: "contain",
-                        objectPosition: isRight ? "right bottom" : "left bottom",
+                        objectPosition: isRight
+                          ? "right bottom"
+                          : "left bottom",
                         maxHeight: "none",
                         ...(isRight
                           ? { right: `${zoneSize.w - plateLeftPx}px` }

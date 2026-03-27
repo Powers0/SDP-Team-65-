@@ -9,7 +9,7 @@
 
   /* silhouette sizes */
   --silSize: 200px; /* batter column width & image width */
-  --pitcherSilH: 120px; /* pitcher slot height */
+  --pitcherSilH: 160px; /* pitcher slot height */
 
   /* layout gaps */
   --gapX: 16px;
@@ -357,9 +357,8 @@
 }
 
 .pitcher-silhouette {
-  width: var(--silSize);
-  height: auto;
-  max-height: var(--pitcherSilH);
+  height: var(--pitcherSilH);
+  width: auto;
   object-fit: contain;
   object-position: bottom center;
   mix-blend-mode: normal;
