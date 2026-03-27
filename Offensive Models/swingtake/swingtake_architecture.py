@@ -1,24 +1,20 @@
 from tensorflow.keras.layers import Input, Dense, Dropout, Concatenate
 from tensorflow.keras.models import Model
 
-def build_swingtake_model(pitch_type_dim: int, extra_dim: int):
-    """
-    Inputs:
-      - pitchtype_input: (pitch_type_dim)  7-dim 
-      - extra_input:     (extra_dim)       predicted x,z, dist, strike_prob
-
-    Output:
-      - P(swing)
-    """
+def build_swingtake_model(pitch_type_dim: int, loc_dim: int, ctx_dim: int):
     pitchtype_input = Input(shape=(pitch_type_dim,), name="pitchtype_onehot")
-    extra_input = Input(shape=(extra_dim,), name="location_features")
+    location_input  = Input(shape=(loc_dim,),        name="location_features")
+    context_input   = Input(shape=(ctx_dim,),         name="context_features")
 
-    x = Concatenate()([pitchtype_input, extra_input])
-    x = Dense(64, activation="relu")(x)
+    x = Concatenate()([pitchtype_input, location_input, context_input])
+    x = Dense(128, activation="relu")(x)
     x = Dropout(0.30)(x)
-    x = Dense(32, activation="relu")(x)
+    x = Dense(64, activation="relu")(x)
     x = Dropout(0.20)(x)
+    x = Dense(32, activation="relu")(x)
+    x = Dropout(0.10)(x)
     out = Dense(1, activation="sigmoid")(x)
 
-    return Model(inputs=[pitchtype_input, extra_input], outputs=out)
+    return Model(inputs=[pitchtype_input, location_input, context_input], outputs=out)
+
 

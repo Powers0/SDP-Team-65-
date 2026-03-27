@@ -65,7 +65,8 @@ model = build_pitch_model(
     num_classes=num_classes
 )
 
-model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
+from tensorflow.keras.optimizers import Adam
+model.compile(optimizer=Adam(learning_rate=0.0005), loss="categorical_crossentropy", metrics=["accuracy"])
 model.summary()
 
 # ---------------------------------------------------
@@ -73,18 +74,32 @@ model.summary()
 # ---------------------------------------------------
 early_stop = EarlyStopping(
     monitor="val_loss",
-    patience=3,
+    patience=5,
     restore_best_weights=True
 )
+
+from collections import Counter
+counts = Counter(Y_train)
+total = len(Y_train)
+n_classes = len(counts)
+class_weight_dict = {
+    cls: (total / (n_classes * count)) ** 0.5 
+    for cls, count in counts.items()
+}
+print("Class weights:", class_weight_dict)
+
+
 
 history = model.fit(
     [X_train, P_train, B_train],
     Y_train_cat,
     validation_split=0.2,
-    epochs=12,
-    batch_size=64,
+    epochs=20,
+    batch_size=256,
     callbacks=[early_stop],
-    verbose=1
+    verbose=1,
+    class_weight=class_weight_dict
+
 )
 
 # ---------------------------------------------------

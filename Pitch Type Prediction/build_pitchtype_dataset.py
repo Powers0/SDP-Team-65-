@@ -38,7 +38,7 @@ def preprocess(df):
 
     common_pitches = ["FF", "SL", "SI", "CH", "CU", "FC", "ST", "FS"]
 
-    df = df.dropna(subset=features + ["pitch_type", "stand", "p_throws", "zone"])
+    df = df.dropna(subset=["pitch_type", "stand", "p_throws", "zone"])
     df = df[df["pitch_type"].isin(common_pitches)]
 
     # Base runners = 0/1
