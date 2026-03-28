@@ -470,7 +470,9 @@ def predict_next(
     is_strike = 1.0 if (abs(samp_x) <= 0.83 and samp_z >= 1.5 and samp_z <= 3.5) else 0.0
 
     loc_raw = np.array([[samp_x, samp_z, dist_to_center, is_strike]])
-    loc_scaled = artifacts["loc_scaler"].transform(loc_raw)
+    ct_loc_scaled = artifacts["contact_loc_scaler"].transform(loc_raw)
+
+
 
     #Make swing/take prediction
     # Build context features for swing/take (12 features: 5 continuous + 7 binary)
@@ -489,7 +491,12 @@ def predict_next(
     st_p_id = np.array([[p_idx]], dtype=np.int32)
     st_b_id = np.array([[b_idx]], dtype=np.int32)
 
+
+    loc_scaled = artifacts["loc_scaler"].transform(loc_raw)
     swing_take_probs = swingtake_model.predict([onehot, loc_scaled, ctx_arr, st_p_id, st_b_id], verbose=0)
+
+    
+
 
     swing_prob = float(swing_take_probs[0][0])
     # Contact outcome prediction
@@ -502,7 +509,7 @@ def predict_next(
     ct_ctx[:, :len(ST_CONTINUOUS)] = artifacts["contact_ctx_scaler"].transform(ctx_arr_raw[:, :len(ST_CONTINUOUS)])
 
     ct_probs = artifacts["contact_model"].predict(
-        [ct_onehot, loc_scaled, ct_ctx, st_p_id, st_b_id], verbose=0
+        [ct_onehot, ct_loc_scaled, ct_ctx, st_p_id, st_b_id], verbose=0
     )[0]
     contact_idx = int(np.argmax(ct_probs))
     contact_outcome = artifacts["contact_classes"][contact_idx]
