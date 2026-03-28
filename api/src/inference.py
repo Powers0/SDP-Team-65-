@@ -481,8 +481,10 @@ def predict_next(
     for col in ST_CONTINUOUS + ST_BINARY:
         ctx_vals.append(float(last_row[col]) if col in last_row.index else 0.0)
 
-    ctx_arr = np.array([ctx_vals], dtype=np.float32)
-    ctx_arr[:, :len(ST_CONTINUOUS)] = artifacts["ctx_scaler"].transform(ctx_arr[:, :len(ST_CONTINUOUS)])
+    ctx_arr_raw = np.array([ctx_vals], dtype=np.float32)
+    ctx_arr = ctx_arr_raw.copy()
+    ctx_arr[:, :len(ST_CONTINUOUS)] = artifacts["ctx_scaler"].transform(ctx_arr_raw[:, :len(ST_CONTINUOUS)])
+
 
     st_p_id = np.array([[p_idx]], dtype=np.int32)
     st_b_id = np.array([[b_idx]], dtype=np.int32)
@@ -490,6 +492,25 @@ def predict_next(
     swing_take_probs = swingtake_model.predict([onehot, loc_scaled, ctx_arr, st_p_id, st_b_id], verbose=0)
 
     swing_prob = float(swing_take_probs[0][0])
+    # Contact outcome prediction
+    ct_onehot = np.zeros(len(artifacts["contact_pitch_types"]), dtype=np.float32)
+    if str(pt_pred) in artifacts["contact_pitch_types"]:
+        ct_onehot[artifacts["contact_pitch_types"].index(str(pt_pred))] = 1.0
+    ct_onehot = ct_onehot.reshape(1, -1)
+
+    ct_ctx = ctx_arr_raw.copy()
+    ct_ctx[:, :len(ST_CONTINUOUS)] = artifacts["contact_ctx_scaler"].transform(ctx_arr_raw[:, :len(ST_CONTINUOUS)])
+
+    ct_probs = artifacts["contact_model"].predict(
+        [ct_onehot, loc_scaled, ct_ctx, st_p_id, st_b_id], verbose=0
+    )[0]
+    contact_idx = int(np.argmax(ct_probs))
+    contact_outcome = artifacts["contact_classes"][contact_idx]
+    contact_probs = {
+        artifacts["contact_classes"][i]: float(ct_probs[i])
+        for i in range(len(ct_probs))
+    }
+
 
 
 
@@ -503,5 +524,8 @@ def predict_next(
         "location": {"plate_x": float(samp_x), "plate_z": float(samp_z)},
         "location_mean": {"plate_x": float(mean_x), "plate_z": float(mean_z)},
         "context": context,
-        "swing_prob": swing_prob
+        "swing_prob": swing_prob,
+        "contact_outcome": contact_outcome,
+        "contact_probs": contact_probs,
+
     }

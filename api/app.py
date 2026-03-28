@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
 
-from src.config import SEQ_LEN, PT_DIR, LOC_DIR, ST_DIR, SHARED_DIR, SERVING_TABLE_PATH, LOCATION_GMM_PATH
+from src.config import SEQ_LEN, PT_DIR, LOC_DIR, ST_DIR, CT_DIR, SHARED_DIR, SERVING_TABLE_PATH, LOCATION_GMM_PATH
 from src.artifacts import load_all
 from src.serving_data import load_serving_table, get_window_with_fallback
 from src.inference import predict_next
@@ -112,7 +112,7 @@ app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 print("Loading artifacts/models...")
-ART = load_all(PT_DIR, LOC_DIR, ST_DIR, SHARED_DIR, gmm_path=LOCATION_GMM_PATH)
+ART = load_all(PT_DIR, LOC_DIR, ST_DIR, CT_DIR, SHARED_DIR, gmm_path=LOCATION_GMM_PATH)
 print("PT_DIR:", os.path.abspath(PT_DIR))
 print("Loaded pitchtype model input_shape:", ART["pitchtype_model"].input_shape)
 print("pt_features len:", len(ART["pt_features"]))
