@@ -6,6 +6,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 import tensorflow as tf
 
 
+
 from contact_architecture import build_contact_model
 
 ART_PATH = "artifacts/"
@@ -62,6 +63,7 @@ if __name__ == "__main__":
 
     early = EarlyStopping(monitor="val_loss", patience=3, restore_best_weights=True)
 
+
     history = model.fit(
         [PT_train, LOC_train_s, CTX_train_s, P_train, B_train],
         y_train,
@@ -71,7 +73,6 @@ if __name__ == "__main__":
         callbacks=[early],
         verbose=1
 )
-
 
     print("\nEvaluating...")
     probs = model.predict([PT_test, LOC_test_s, CTX_test_s, P_test, B_test], batch_size=256, verbose=0)
