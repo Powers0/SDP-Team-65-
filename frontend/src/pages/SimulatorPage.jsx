@@ -74,7 +74,11 @@ function computeCountFromPitches(pitches, upToIndexInclusive = null) {
   for (let i = 0; i < end; i += 1) {
     const r = String(pitches[i]?.result ?? "").toLowerCase();
     if (r.startsWith("ball")) balls += 1;
-    if (r.toLowerCase().includes("strike")) strikes += 1;
+    if (
+      r.toLowerCase().includes("strike") ||
+      (r.includes("foul") && strikes < 2)
+    )
+      strikes += 1;
     if (balls > 3) balls = 3;
     if (strikes > 2) strikes = 2;
   }
@@ -277,6 +281,7 @@ export default function SimulatorPage() {
             api.pt ??
             "FF",
           swingProb: api.swing_prob ?? null,
+          contactOutcome: api.contact_outcome ?? null,
           // We derive Ball/Strike from the predicted location + hitter zone.
           //
           result: null,
@@ -294,7 +299,14 @@ export default function SimulatorPage() {
 
     const swings = Math.random() < (p.swingProb ?? 0.5);
     if (swings) {
-      p.result = "Swinging Strike";
+      const contact = p.contactOutcome ?? "miss";
+      if (contact === "miss") {
+        p.result = "Swinging Strike";
+      } else if (contact === "foul") {
+        p.result = "Foul ball";
+      } else if (contact === "fair") {
+        p.result = "Fair ball";
+      }
     } else {
       p.result = inZone ? "Called Strike" : "Ball";
     }
@@ -400,9 +412,13 @@ export default function SimulatorPage() {
     const result = String(currentPitch?.result ?? "").toLowerCase();
     const finalColor = result.startsWith("ball")
       ? "#6dde7e"
-      : result.toLowerCase().includes("strike")
+      : result.includes("strike")
         ? "#f0c040"
-        : "rgba(255,255,255,0.95)";
+        : result.includes("foul")
+          ? "#f0a040"
+          : result.includes("fair")
+            ? "#4fc3f7"
+            : "rgba(255,255,255,0.95)";
 
     // History navigation: jump straight to final position + color, no animation
     if (!shouldAnimateRef.current) {
@@ -446,7 +462,12 @@ export default function SimulatorPage() {
         color: finalColor,
         traveling: false,
       });
-      setIsSwinging(result.includes("swinging"));
+      setIsSwinging(
+        result.includes("swinging") ||
+          result.includes("foul") ||
+          result.includes("fair"),
+      );
+
       setPitcherPhase("set");
     }, 20 + TRAVEL_MS);
 
