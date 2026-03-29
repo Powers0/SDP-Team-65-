@@ -326,7 +326,8 @@ export default function SimulatorPage() {
     setPitches((prev) => [...prev, p]);
     setPitchIndex((prev) => prev + 1);
     const r = p.result ?? "";
-    if (r.includes("Strikeout")) setAtBatOver("strikeout");
+    if (r === "Strikeout Swinging") setAtBatOver("strikeout_swinging");
+    else if (r === "Strikeout Looking") setAtBatOver("strikeout_looking");
     else if (r === "Ball" && liveCount.balls === 3) setAtBatOver("walk");
     else if (r === "Fair") setAtBatOver("fair");
   }
@@ -764,9 +765,20 @@ export default function SimulatorPage() {
             </div>
 
             {/* under zone, BEFORE buttons */}
-            <div className="pitch-result">
-              {currentPitch ? currentPitch.result : "\u00A0"}
-            </div>
+            {!atBatOver && (
+              <div className="pitch-result">
+                {currentPitch ? currentPitch.result : "\u00A0"}
+              </div>
+            )}
+
+            {atBatOver && (
+              <div className={`atbat-result-banner ${atBatOver}`}>
+                {atBatOver === "strikeout_swinging" && "Strikeout Swinging!"}
+                {atBatOver === "strikeout_looking" && "Strikeout Looking!"}
+                {atBatOver === "walk" && "Walk!"}
+                {atBatOver === "fair" && "Ball in Play!"}
+              </div>
+            )}
 
             {/* buttons */}
             <div className="controls">
