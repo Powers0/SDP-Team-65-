@@ -768,13 +768,14 @@ export default function SimulatorPage() {
             {/* buttons */}
             <div className="controls">
               <div className="controls-inner">
-                <button
-                  className="btn primary"
-                  onClick={onNextPitch}
-                  disabled={atBatOver !== null}
-                >
-                  Next Pitch
-                </button>
+                {!atBatOver && (
+                  <button
+                    className="btn primary"
+                    onClick={onNextPitch}
+                  >
+                    Next Pitch
+                  </button>
+                )}
                 <div className="controls-bottom">
                   {pitches.length > 0 && (
                     <button
