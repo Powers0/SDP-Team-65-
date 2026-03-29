@@ -587,6 +587,9 @@ export default function SimulatorPage() {
                 {pitches.map((p, i) => {
                   const isActive = i === pitchIndex;
                   const result = String(p.result ?? "").trim();
+                  const isStrikeout = result
+                    .toLowerCase()
+                    .includes("strikeout");
                   const isFoul = result.toLowerCase() === "foul";
                   const isFair = result.toLowerCase() === "fair";
                   const isBall = result.toLowerCase().startsWith("ball");
@@ -600,7 +603,7 @@ export default function SimulatorPage() {
                     >
                       <span className="ph-num">#{i + 1}</span>
                       <span
-                        className={`ph-result ${isFair ? "fair" : isFoul ? "foul" : isBall ? "ball" : isStrike ? "strike" : ""}`}
+                        className={`ph-result ${isFair ? "fair" : isFoul ? "foul" : isStrikeout ? "strikeout" : isBall ? "ball" : isStrike ? "strike" : ""}`}
                       >
                         {result || "—"}
                       </span>
@@ -611,7 +614,7 @@ export default function SimulatorPage() {
                   );
                 })}
               </div>
-              </div>
+            </div>
           )}
         </div>
 
@@ -769,10 +772,7 @@ export default function SimulatorPage() {
             <div className="controls">
               <div className="controls-inner">
                 {!atBatOver && (
-                  <button
-                    className="btn primary"
-                    onClick={onNextPitch}
-                  >
+                  <button className="btn primary" onClick={onNextPitch}>
                     Next Pitch
                   </button>
                 )}
@@ -870,7 +870,6 @@ export default function SimulatorPage() {
                 ))}
               </div>
             )}
-            
           </div>
         </div>
       </div>

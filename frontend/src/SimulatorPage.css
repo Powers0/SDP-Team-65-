@@ -172,6 +172,10 @@
   opacity: 0.6;
 }
 
+.ph-result.strikeout {
+  color: #f87171;
+}
+
 .ph-empty {
   font-size: 12px;
   opacity: 0.4;
