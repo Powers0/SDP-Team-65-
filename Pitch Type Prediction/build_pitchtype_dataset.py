@@ -26,7 +26,6 @@ def preprocess(df):
     features = [
         "balls", "strikes", "outs_when_up", "inning",
         "on_1b", "on_2b", "on_3b",
-        "bat_score", "fld_score"
     ]
 
     PITCH_MERGE = {
@@ -38,7 +37,7 @@ def preprocess(df):
 
     common_pitches = ["FF", "SL", "SI", "CH", "CU", "FC", "ST", "FS"]
 
-    df = df.dropna(subset=features + ["pitch_type", "stand", "p_throws", "zone"])
+    df = df.dropna(subset=["pitch_type", "stand", "p_throws", "zone"])
     df = df[df["pitch_type"].isin(common_pitches)]
 
     # Base runners = 0/1
@@ -60,16 +59,20 @@ def preprocess(df):
     df["pitch_encoded"] = le_pitch.fit_transform(df["pitch_type"])
 
     # Previous pitch/zone
-    df["previous_pitch"] = df.groupby(["pitcher", "game_pk", "at_bat_number"])["pitch_type"].shift(1).fillna("None")
-    df["previous_zone"] = df.groupby(["pitcher", "game_pk", "at_bat_number"])["zone"].shift(1).fillna(-1)
+    df["previous_pitch"] = df.groupby(["pitcher", "game_pk"])["pitch_type"].shift(1).fillna("None")
+    df["previous_zone"] = df.groupby(["pitcher", "game_pk"])["zone"].shift(1).fillna(-1)
 
     df = pd.get_dummies(df, columns=["previous_pitch"], drop_first=False)
     features += [c for c in df.columns if c.startswith("previous_pitch_")]
     features.append("previous_zone")
 
-    # Scale features
+    # Only scale continuous features, not binary/one-hot columns
+    continuous_features = [
+        "balls", "strikes", "outs_when_up", "inning",
+        "score_diff", "previous_zone"
+    ]
     scaler = StandardScaler()
-    df[features] = scaler.fit_transform(df[features])
+    df[continuous_features] = scaler.fit_transform(df[continuous_features])
 
     df["pitcher_id"] = pitcher_le.transform(df["pitcher"].astype(int))
     df["batter_id"]  = batter_le.transform(df["batter"].astype(int))
@@ -80,7 +83,7 @@ def preprocess(df):
 def build_sequences(df, features):
     X, Y, P, B = [], [], [], []
 
-    for _, group in df.groupby(["pitcher", "game_pk", "at_bat_number"]):
+    for _, group in df.groupby(["pitcher", "game_pk"]):
         feats = group[features].values
         labels = group["pitch_encoded"].values
         p_ids = group["pitcher_id"].values
@@ -90,10 +93,10 @@ def build_sequences(df, features):
             continue
 
         for i in range(SEQUENCE_LEN, len(feats)):
-            X.append(feats[i-SEQUENCE_LEN:i])
+            X.append(feats[i-SEQUENCE_LEN+1:i+1])
             Y.append(labels[i])
-            P.append(p_ids[i-SEQUENCE_LEN:i])
-            B.append(b_ids[i-SEQUENCE_LEN:i])
+            P.append(p_ids[i-SEQUENCE_LEN+1:i+1])
+            B.append(b_ids[i-SEQUENCE_LEN+1:i+1])
 
     return np.array(X), np.array(Y), np.array(P), np.array(B)
 
@@ -107,11 +110,18 @@ if __name__ == "__main__":
     df, features, le_pitch, scaler = preprocess(df)
     X, Y, P, B = build_sequences(df, features)
 
+    print(f"X dtype: {np.array(X).dtype}")
+    print(f"X shape sample: {np.array(X[:3]).shape}")
+    print(f"Sequence lengths: {set(len(x) for x in X[:100])}")
+
+
     # Save artifacts
-    np.save("artifacts/processed_X.npy", X)
-    np.save("artifacts/processed_Y.npy", Y)
-    np.save("artifacts/processed_pitcher.npy", P)
-    np.save("artifacts/processed_batter.npy", B)
+    np.save("artifacts/processed_X.npy", np.array(X, dtype=np.float32))
+    np.save("artifacts/processed_Y.npy", np.array(Y, dtype=np.int32))
+    np.save("artifacts/processed_pitcher.npy", np.array(P, dtype=np.int32))
+    np.save("artifacts/processed_batter.npy", np.array(B, dtype=np.int32))
+
+
 
     pickle.dump(le_pitch, open("artifacts/label_encoder.pkl", "wb"))
     pickle.dump(scaler, open("artifacts/scaler.pkl", "wb"))

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import numpy as np
 
 # Serving table feature columns for previous pitch one-hot usually look like:
@@ -329,7 +330,12 @@ def predict_next(
     sub_loc = ensure_columns(serving_window.copy(), loc_features)
 
     # Pass DataFrames (not .values) so the scaler sees the feature names it was fitted with
-    Xpt  = pt_scaler_X.transform(sub_pt)[np.newaxis, :, :]
+    PT_CONTINUOUS = ["balls", "strikes", "outs_when_up", "inning", "score_diff", "previous_zone"]
+    sub_pt_scaled = sub_pt.copy()
+    sub_pt_scaled[PT_CONTINUOUS] = pt_scaler_X.transform(sub_pt[PT_CONTINUOUS].values)
+    Xpt = sub_pt_scaled.values.astype(np.float32)[np.newaxis, :, :]
+
+
     Xloc = loc_scaler_X.transform(sub_loc)[np.newaxis, :, :]
 
     # Embedding IDs from encoders 
@@ -464,11 +470,55 @@ def predict_next(
     is_strike = 1.0 if (abs(samp_x) <= 0.83 and samp_z >= 1.5 and samp_z <= 3.5) else 0.0
 
     loc_raw = np.array([[samp_x, samp_z, dist_to_center, is_strike]])
-    loc_scaled = artifacts["loc_scaler"].transform(loc_raw)
+    ct_loc_scaled = artifacts["contact_loc_scaler"].transform(loc_raw)
+
+
 
     #Make swing/take prediction
-    swing_take_probs = swingtake_model.predict([onehot, loc_scaled], verbose=0)
+    # Build context features for swing/take (12 features: 5 continuous + 7 binary)
+    ST_CONTINUOUS = ["balls", "strikes", "outs_when_up", "inning", "score_diff"]
+    ST_BINARY = ["on_1b", "on_2b", "on_3b", "stand_L", "stand_R", "p_throws_L", "p_throws_R"]
+
+    ctx_vals = []
+    for col in ST_CONTINUOUS + ST_BINARY:
+        ctx_vals.append(float(last_row[col]) if col in last_row.index else 0.0)
+
+    ctx_arr_raw = np.array([ctx_vals], dtype=np.float32)
+    ctx_arr = ctx_arr_raw.copy()
+    ctx_arr[:, :len(ST_CONTINUOUS)] = artifacts["ctx_scaler"].transform(ctx_arr_raw[:, :len(ST_CONTINUOUS)])
+
+
+    st_p_id = np.array([[p_idx]], dtype=np.int32)
+    st_b_id = np.array([[b_idx]], dtype=np.int32)
+
+
+    loc_scaled = artifacts["loc_scaler"].transform(loc_raw)
+    swing_take_probs = swingtake_model.predict([onehot, loc_scaled, ctx_arr, st_p_id, st_b_id], verbose=0)
+
+    
+
+
     swing_prob = float(swing_take_probs[0][0])
+    # Contact outcome prediction
+    ct_onehot = np.zeros(len(artifacts["contact_pitch_types"]), dtype=np.float32)
+    if str(pt_pred) in artifacts["contact_pitch_types"]:
+        ct_onehot[artifacts["contact_pitch_types"].index(str(pt_pred))] = 1.0
+    ct_onehot = ct_onehot.reshape(1, -1)
+
+    ct_ctx = ctx_arr_raw.copy()
+    ct_ctx[:, :len(ST_CONTINUOUS)] = artifacts["contact_ctx_scaler"].transform(ctx_arr_raw[:, :len(ST_CONTINUOUS)])
+
+    ct_probs = artifacts["contact_model"].predict(
+        [ct_onehot, ct_loc_scaled, ct_ctx, st_p_id, st_b_id], verbose=0
+    )[0]
+    contact_idx = int(np.argmax(ct_probs))
+    contact_outcome = artifacts["contact_classes"][contact_idx]
+    contact_probs = {
+        artifacts["contact_classes"][i]: float(ct_probs[i])
+        for i in range(len(ct_probs))
+    }
+
+
 
 
 
@@ -481,5 +531,8 @@ def predict_next(
         "location": {"plate_x": float(samp_x), "plate_z": float(samp_z)},
         "location_mean": {"plate_x": float(mean_x), "plate_z": float(mean_z)},
         "context": context,
-        "swing_prob": swing_prob
+        "swing_prob": swing_prob,
+        "contact_outcome": contact_outcome,
+        "contact_probs": contact_probs,
+
     }

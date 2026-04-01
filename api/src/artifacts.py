@@ -1,12 +1,19 @@
+from __future__ import annotations
 import pickle
 from tensorflow.keras.models import load_model
 import json
 import os
 
-def load_all(PT_DIR, LOC_DIR, ST_DIR, SHARED_DIR, gmm_path: str | None = None):
+def load_all(PT_DIR, LOC_DIR, ST_DIR, CT_DIR, SHARED_DIR, gmm_path=None):
     pitchtype_model = load_model(PT_DIR + "pitchtype_model.keras")
     location_model  = load_model(LOC_DIR + "pitch_location_model.keras", compile=False)
     swingtake_model = load_model(ST_DIR + "swingtake_model.keras")
+    contact_model      = load_model(CT_DIR + "contact_model.keras")
+    contact_classes    = pickle.load(open(CT_DIR + "classes.pkl", "rb"))
+    contact_pitch_types = pickle.load(open(CT_DIR + "pitch_types.pkl", "rb"))
+    contact_loc_scaler = pickle.load(open(CT_DIR + "loc_scaler.pkl", "rb"))
+    contact_ctx_scaler = pickle.load(open(CT_DIR + "ctx_scaler.pkl", "rb"))
+
 
     pt_features  = pickle.load(open(PT_DIR + "features.pkl", "rb"))
     pt_scaler_X  = pickle.load(open(PT_DIR + "scaler.pkl", "rb"))
@@ -22,6 +29,8 @@ def load_all(PT_DIR, LOC_DIR, ST_DIR, SHARED_DIR, gmm_path: str | None = None):
     
     loc_scaler = pickle.load(open(ST_DIR + "loc_scaler.pkl", "rb"))
     pitch_types = pickle.load(open(ST_DIR + "pitch_types.pkl", "rb"))
+    ctx_scaler = pickle.load(open(ST_DIR + "ctx_scaler.pkl", "rb"))
+
 
     names_path = os.path.join(SHARED_DIR, "player_names.json")
     with open(names_path, "r") as f:
@@ -56,4 +65,11 @@ def load_all(PT_DIR, LOC_DIR, ST_DIR, SHARED_DIR, gmm_path: str | None = None):
         "loc_scaler": loc_scaler,
         "pitch_types": pitch_types,
         "location_gmm": location_gmm,   # dict of {pitch_type: GaussianMixture} or None
+        "ctx_scaler": ctx_scaler,
+        "contact_model":       contact_model,
+        "contact_classes":     contact_classes,
+        "contact_pitch_types": contact_pitch_types,
+        "contact_loc_scaler":  contact_loc_scaler,
+        "contact_ctx_scaler":  contact_ctx_scaler,
+
     }

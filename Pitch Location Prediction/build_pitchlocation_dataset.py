@@ -47,9 +47,11 @@ def preprocess(df):
     )
 
     # Need ordering keys present for previous-pitch features
-    df = df.dropna(subset=features + target_cols +
-                   ["stand","p_throws","zone","pitch_type","pitcher","batter",
-                    "game_pk","at_bat_number","pitch_number"])
+    df = df.dropna(subset=["balls","strikes","outs_when_up","inning",
+                        "bat_score","fld_score"] + target_cols +
+               ["stand","p_throws","zone","pitch_type","pitcher","batter",
+                "game_pk","at_bat_number","pitch_number"])
+
 
     for base in ["on_1b","on_2b","on_3b"]:
         df[base] = df[base].notna().astype(int)

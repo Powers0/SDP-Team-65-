@@ -3,8 +3,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "../SimulatorPage.css";
 
 // Silhouette assets
-import pitcherLeftB from "../assets/pitcher_l_set.svg";
-import pitcherRightB from "../assets/pitcher_r_set.svg";
+import pitcherLeftSet from "../assets/pitcher_l_set.svg";
+import pitcherRightSet from "../assets/pitcher_r_set.svg";
+import pitcherLeftWindup from "../assets/pitcher_left_b.svg";
+import pitcherRightWindup from "../assets/pitcher_right_b.svg";
+import pitcherLeftThrow from "../assets/Pitcher_throwing_left.svg";
+import pitcherRightThrow from "../assets/Pitcher_throwing_right.svg";
 import batterLeftB from "../assets/batter_left_b.svg";
 import batterRightB from "../assets/batter_right_b.svg";
 import batterLeftSwing from "../assets/batter_l_swing.svg";
@@ -70,7 +74,11 @@ function computeCountFromPitches(pitches, upToIndexInclusive = null) {
   for (let i = 0; i < end; i += 1) {
     const r = String(pitches[i]?.result ?? "").toLowerCase();
     if (r.startsWith("ball")) balls += 1;
-    if (r.toLowerCase().includes("strike")) strikes += 1;
+    if (
+      r.toLowerCase().includes("strike") ||
+      (r.includes("foul") && strikes < 2)
+    )
+      strikes += 1;
     if (balls > 3) balls = 3;
     if (strikes > 2) strikes = 2;
   }
@@ -94,6 +102,8 @@ export default function SimulatorPage() {
 
   const { pitcher, batter, outs, offScore, defScore, inning, bases } = state;
   const [isSwinging, setIsSwinging] = useState(false);
+  const [pitcherPhase, setPitcherPhase] = useState("set"); // "set" | "windup" | "throwing"
+  const [atBatOver, setAtBatOver] = useState(null); // null | "walk" | "strikeout" | "fair"
 
   useEffect(() => {
     const pitcherId =
@@ -223,7 +233,15 @@ export default function SimulatorPage() {
     }
   }
 
+  function animatePitcher() {
+    setPitcherPhase("windup");
+    setTimeout(() => {
+      setPitcherPhase("throwing");
+    }, 500);
+  }
+
   async function onNextPitch() {
+    animatePitcher();
     // if we're not at the end of history, just move forward
     if (pitchIndex < pitches.length - 1) {
       setPitchIndex(pitchIndex + 1);
@@ -264,6 +282,7 @@ export default function SimulatorPage() {
             api.pt ??
             "FF",
           swingProb: api.swing_prob ?? null,
+          contactOutcome: api.contact_outcome ?? null,
           // We derive Ball/Strike from the predicted location + hitter zone.
           //
           result: null,
@@ -281,11 +300,23 @@ export default function SimulatorPage() {
 
     const swings = Math.random() < (p.swingProb ?? 0.5);
     if (swings) {
-      p.result = "Swinging Strike";
+      const contact = p.contactOutcome ?? "miss";
+      if (contact === "miss") {
+        p.result =
+          liveCount.strikes === 2 ? "Strikeout Swinging" : "Swinging Strike";
+      } else if (contact === "foul") {
+        p.result = "Foul";
+      } else {
+        p.result = "Fair";
+      }
     } else {
-      p.result = inZone ? "Called Strike" : "Ball";
+      if (inZone) {
+        p.result =
+          liveCount.strikes === 2 ? "Strikeout Looking" : "Called Strike";
+      } else {
+        p.result = "Ball";
+      }
     }
-
     setLastPitchType(p.pitchType ?? "None");
     setLastZone(computePrevZone(px, pz, szBot, szTop));
 
@@ -294,10 +325,19 @@ export default function SimulatorPage() {
     shouldAnimateRef.current = true;
     setPitches((prev) => [...prev, p]);
     setPitchIndex((prev) => prev + 1);
+    const r = p.result ?? "";
+    if (r === "Strikeout Swinging") setAtBatOver("strikeout_swinging");
+    else if (r === "Strikeout Looking") setAtBatOver("strikeout_looking");
+    else if (r === "Ball" && liveCount.balls === 3) setAtBatOver("walk");
+    else if (r === "Fair") setAtBatOver("fair");
   }
 
-  function onPrevPitch() {
-    setPitchIndex((i) => Math.max(-1, i - 1));
+  function resetAtBat() {
+    setPitches([]);
+    setPitchIndex(-1);
+    setAtBatOver(null);
+    setLastPitchType("None");
+    setLastZone(0);
   }
 
   const zoneRef = useRef(null);
@@ -387,9 +427,13 @@ export default function SimulatorPage() {
     const result = String(currentPitch?.result ?? "").toLowerCase();
     const finalColor = result.startsWith("ball")
       ? "#6dde7e"
-      : result.toLowerCase().includes("strike")
+      : result.includes("strike")
         ? "#f0c040"
-        : "rgba(255,255,255,0.95)";
+        : result.includes("foul")
+          ? "#f0a040"
+          : result.includes("fair")
+            ? "#4fc3f7"
+            : "rgba(255,255,255,0.95)";
 
     // History navigation: jump straight to final position + color, no animation
     if (!shouldAnimateRef.current) {
@@ -399,6 +443,7 @@ export default function SimulatorPage() {
         color: finalColor,
         traveling: false,
       });
+      setPitcherPhase("set");
       return;
     }
 
@@ -432,7 +477,13 @@ export default function SimulatorPage() {
         color: finalColor,
         traveling: false,
       });
-      setIsSwinging(result.includes("swinging"));
+      setIsSwinging(
+        result.includes("swinging") ||
+          result.includes("foul") ||
+          result.includes("fair"),
+      );
+
+      setPitcherPhase("set");
     }, 20 + TRAVEL_MS);
 
     animTimersRef.current = [t1, t2];
@@ -537,6 +588,11 @@ export default function SimulatorPage() {
                 {pitches.map((p, i) => {
                   const isActive = i === pitchIndex;
                   const result = String(p.result ?? "").trim();
+                  const isStrikeout = result
+                    .toLowerCase()
+                    .includes("strikeout");
+                  const isFoul = result.toLowerCase() === "foul";
+                  const isFair = result.toLowerCase() === "fair";
                   const isBall = result.toLowerCase().startsWith("ball");
                   const isStrike = result.toLowerCase().includes("strike");
                   return (
@@ -548,7 +604,7 @@ export default function SimulatorPage() {
                     >
                       <span className="ph-num">#{i + 1}</span>
                       <span
-                        className={`ph-result ${isBall ? "ball" : isStrike ? "strike" : ""}`}
+                        className={`ph-result ${isFair ? "fair" : isFoul ? "foul" : isStrikeout ? "strikeout" : isBall ? "ball" : isStrike ? "strike" : ""}`}
                       >
                         {result || "—"}
                       </span>
@@ -570,8 +626,34 @@ export default function SimulatorPage() {
             <div className="pitcher-slot">
               <img
                 className="silhouette pitcher-silhouette"
-                src={pitcher?.throws === "L" ? pitcherLeftB : pitcherRightB}
+                src={
+                  pitcher?.throws === "L"
+                    ? pitcherPhase === "windup"
+                      ? pitcherLeftWindup
+                      : pitcherPhase === "throwing"
+                        ? pitcherLeftThrow
+                        : pitcherLeftSet
+                    : pitcherPhase === "windup"
+                      ? pitcherRightWindup
+                      : pitcherPhase === "throwing"
+                        ? pitcherRightThrow
+                        : pitcherRightSet
+                }
                 alt="Pitcher silhouette"
+                style={{
+                  ...(pitcherPhase !== "set"
+                    ? {
+                        filter: "invert(1) contrast(1000%)",
+                        mixBlendMode: "screen",
+                      }
+                    : {}),
+                  height:
+                    pitcherPhase === "windup"
+                      ? "180px"
+                      : pitcherPhase === "throwing"
+                        ? "120px"
+                        : undefined,
+                }}
               />
             </div>
 
@@ -631,7 +713,9 @@ export default function SimulatorPage() {
                         height: `${fullH}px`,
                         width: `${Math.round(fullH * (1000 / 1939))}px`,
                         objectFit: "contain",
-                        objectPosition: isRight ? "right bottom" : "left bottom",
+                        objectPosition: isRight
+                          ? "right bottom"
+                          : "left bottom",
                         maxHeight: "none",
                         ...(isRight
                           ? { right: `${zoneSize.w - plateLeftPx}px` }
@@ -681,50 +765,46 @@ export default function SimulatorPage() {
             </div>
 
             {/* under zone, BEFORE buttons */}
-            <div className="pitch-result">
-              {currentPitch ? currentPitch.result : "\u00A0"}
-            </div>
+            {!atBatOver && (
+              <div className="pitch-result">
+                {currentPitch ? currentPitch.result : "\u00A0"}
+              </div>
+            )}
 
-            {/* buttons */}
+            {atBatOver && (
+              <div className={`atbat-result-banner ${atBatOver}`}>
+                {atBatOver === "strikeout_swinging" && "Strikeout Swinging!"}
+                {atBatOver === "strikeout_looking" && "Strikeout Looking!"}
+                {atBatOver === "walk" && "Walk!"}
+                {atBatOver === "fair" && "Ball in Play!"}
+              </div>
+            )}
+
             {/* buttons */}
             <div className="controls">
               <div className="controls-inner">
-                {pitchIndex <= 0 ? (
-                  // ON PITCH 0: Next Pitch + Pick New AB stacked
-                  <div className="controls-p0">
-                    <button className="btn primary" onClick={onNextPitch}>
-                      Next Pitch
-                    </button>
-
+                {!atBatOver && (
+                  <button className="btn primary" onClick={onNextPitch}>
+                    Next Pitch
+                  </button>
+                )}
+                <div className="controls-bottom">
+                  {pitches.length > 0 && (
                     <button
                       className="btn ghost"
-                      onClick={() => navigate("/", { replace: true })}
+                      style={{ marginRight: 8 }}
+                      onClick={resetAtBat}
                     >
-                      Pick New At-Bat
+                      Restart At-Bat
                     </button>
-                  </div>
-                ) : (
-                  // ON PITCH 1+: Prev + Next row, Pick New AB centered under
-                  <div className="controls-p1">
-                    <div className="controls-top">
-                      <button className="btn ghost" onClick={onPrevPitch}>
-                        Prev Pitch
-                      </button>
-                      <button className="btn primary" onClick={onNextPitch}>
-                        Next Pitch
-                      </button>
-                    </div>
-
-                    <div className="controls-bottom">
-                      <button
-                        className="btn ghost"
-                        onClick={() => navigate("/", { replace: true })}
-                      >
-                        Pick New At-Bat
-                      </button>
-                    </div>
-                  </div>
-                )}
+                  )}
+                  <button
+                    className="btn ghost"
+                    onClick={() => navigate("/", { replace: true })}
+                  >
+                    Pick New At-Bat
+                  </button>
+                </div>
               </div>
             </div>
           </div>

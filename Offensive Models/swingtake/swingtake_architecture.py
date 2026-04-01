@@ -1,24 +1,30 @@
-from tensorflow.keras.layers import Input, Dense, Dropout, Concatenate
+from tensorflow.keras.layers import Input, Dense, Dropout, Concatenate, Embedding, Flatten
+
 from tensorflow.keras.models import Model
 
-def build_swingtake_model(pitch_type_dim: int, extra_dim: int):
-    """
-    Inputs:
-      - pitchtype_input: (pitch_type_dim)  7-dim 
-      - extra_input:     (extra_dim)       predicted x,z, dist, strike_prob
+def build_swingtake_model(pitch_type_dim, loc_dim, ctx_dim, num_pitchers, num_batters, embed_dim=8):
 
-    Output:
-      - P(swing)
-    """
     pitchtype_input = Input(shape=(pitch_type_dim,), name="pitchtype_onehot")
-    extra_input = Input(shape=(extra_dim,), name="location_features")
+    location_input  = Input(shape=(loc_dim,),        name="location_features")
+    context_input   = Input(shape=(ctx_dim,),         name="context_features")
 
-    x = Concatenate()([pitchtype_input, extra_input])
-    x = Dense(64, activation="relu")(x)
+    pitcher_input = Input(shape=(1,), name="pitcher_id")
+    batter_input  = Input(shape=(1,), name="batter_id")
+
+    p_emb = Flatten()(Embedding(num_pitchers, embed_dim)(pitcher_input))
+    b_emb = Flatten()(Embedding(num_batters,  embed_dim)(batter_input))
+
+    x = Concatenate()([pitchtype_input, location_input, context_input, p_emb, b_emb])
+
+    x = Dense(128, activation="relu")(x)
     x = Dropout(0.30)(x)
-    x = Dense(32, activation="relu")(x)
+    x = Dense(64, activation="relu")(x)
     x = Dropout(0.20)(x)
+    x = Dense(32, activation="relu")(x)
+    x = Dropout(0.10)(x)
     out = Dense(1, activation="sigmoid")(x)
 
-    return Model(inputs=[pitchtype_input, extra_input], outputs=out)
+    return Model(inputs=[pitchtype_input, location_input, context_input, pitcher_input, batter_input], outputs=out)
+
+
 

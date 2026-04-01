@@ -9,7 +9,7 @@
 
   /* silhouette sizes */
   --silSize: 200px; /* batter column width & image width */
-  --pitcherSilH: 120px; /* pitcher slot height */
+  --pitcherSilH: 160px; /* pitcher slot height */
 
   /* layout gaps */
   --gapX: 16px;
@@ -170,6 +170,10 @@
 
 .ph-result.other {
   opacity: 0.6;
+}
+
+.ph-result.strikeout {
+  color: #f87171;
 }
 
 .ph-empty {
@@ -357,9 +361,8 @@
 }
 
 .pitcher-silhouette {
-  width: var(--silSize);
-  height: auto;
-  max-height: var(--pitcherSilH);
+  height: var(--pitcherSilH);
+  width: auto;
   object-fit: contain;
   object-position: bottom center;
   mix-blend-mode: normal;
@@ -544,4 +547,36 @@
 .btn.ghost {
   background: transparent;
   border-color: rgba(255, 255, 255, 0.2);
+}
+
+.ph-result.foul {
+  color: #facc15;
+}
+
+.ph-result.fair {
+  color: #60a5fa;
+}
+
+.atbat-over-label {
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: white;
+}
+
+.atbat-result-banner {
+  font-size: 1.75rem;
+  font-weight: 700;
+  text-align: center;
+  padding: 10px 0;
+  margin: 8px 0;
+}
+.atbat-result-banner.strikeout_swinging,
+.atbat-result-banner.strikeout_looking {
+  color: #f87171;
+}
+.atbat-result-banner.walk {
+  color: #4ade80;
+}
+.atbat-result-banner.fair {
+  color: #60a5fa;
 }
