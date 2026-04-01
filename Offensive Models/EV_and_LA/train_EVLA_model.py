@@ -6,6 +6,7 @@ from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from EVLA_architecture import build_ev_model
 
 ART_PATH = "artifacts/"
+SHARED_DIR = "../../artifacts/shared/"
 
 
 def evaluate(y_true, y_pred, target_scaler):
@@ -23,51 +24,55 @@ def evaluate(y_true, y_pred, target_scaler):
 
 if __name__ == "__main__":
     print("Loading EV/LA dataset artifacts...")
+    X_train   = np.load(ART_PATH + "X_train.npy")
+    X_test    = np.load(ART_PATH + "X_test.npy")
+    P_train   = np.load(ART_PATH + "P_train.npy")
+    P_test    = np.load(ART_PATH + "P_test.npy")
+    B_train   = np.load(ART_PATH + "B_train.npy")
+    B_test    = np.load(ART_PATH + "B_test.npy")
     PT_train  = np.load(ART_PATH + "PT_train.npy")
     PT_test   = np.load(ART_PATH + "PT_test.npy")
     LOC_train = np.load(ART_PATH + "LOC_train.npy")
     LOC_test  = np.load(ART_PATH + "LOC_test.npy")
-    CTX_train = np.load(ART_PATH + "CTX_train.npy")
-    CTX_test  = np.load(ART_PATH + "CTX_test.npy")
     y_train   = np.load(ART_PATH + "y_train.npy")
     y_test    = np.load(ART_PATH + "y_test.npy")
 
-    pitch_type_dim = PT_train.shape[1]   # 14
-    loc_dim        = LOC_train.shape[1]  # 4
-    ctx_dim        = CTX_train.shape[1]  # varies by handedness dummies present in data
+    target_scaler = pickle.load(open(ART_PATH + "target_scaler.pkl", "rb"))
 
-    # Scale continuous inputs (LOC and CTX); pitch-type one-hots don't need scaling
-    loc_scaler = StandardScaler()
-    LOC_train_s = loc_scaler.fit_transform(LOC_train)
-    LOC_test_s  = loc_scaler.transform(LOC_test)
+    seq_len        = X_train.shape[1]
+    num_features   = X_train.shape[2]
+    pitch_type_dim = PT_train.shape[1]
+    loc_dim        = LOC_train.shape[1]
 
-    ctx_scaler = StandardScaler()
-    CTX_train_s = ctx_scaler.fit_transform(CTX_train)
-    CTX_test_s  = ctx_scaler.transform(CTX_test)
+    # Derive encoder sizes from the shared label encoders (same source as dataset build)
+    pitcher_le = pickle.load(open(SHARED_DIR + "pitcher_le.pkl", "rb"))
+    batter_le  = pickle.load(open(SHARED_DIR + "batter_le.pkl",  "rb"))
+    num_pitchers = len(pitcher_le.classes_)
+    num_batters  = len(batter_le.classes_)
 
-    # Scale targets — EV (~50-120 mph) and LA (~-90 to 90 deg) have very different ranges
-    target_scaler = StandardScaler()
-    y_train_s = target_scaler.fit_transform(y_train)
-    y_test_s  = target_scaler.transform(y_test)
-
-    pickle.dump(loc_scaler,    open(ART_PATH + "loc_scaler.pkl",    "wb"))
-    pickle.dump(ctx_scaler,    open(ART_PATH + "ctx_scaler.pkl",    "wb"))
-    pickle.dump(target_scaler, open(ART_PATH + "target_scaler.pkl", "wb"))
+    print(f"seq_len={seq_len}  num_features={num_features}  pitch_type_dim={pitch_type_dim}")
+    print(f"loc_dim={loc_dim}  num_pitchers={num_pitchers}  num_batters={num_batters}")
 
     # Build and compile
-    model = build_ev_model(pitch_type_dim=pitch_type_dim, loc_dim=loc_dim, ctx_dim=ctx_dim)
+    model = build_ev_model(
+        seq_len=seq_len,
+        num_features=num_features,
+        num_pitchers=num_pitchers,
+        num_batters=num_batters,
+        pitch_type_dim=pitch_type_dim,
+        loc_dim=loc_dim,
+    )
     model.compile(optimizer="adam", loss="mae", metrics=["mae"])
     model.summary()
 
     callbacks = [
         EarlyStopping(monitor="val_loss", patience=4, restore_best_weights=True),
-        # Reduce LR when val_loss plateaus — helpful for regression
         ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=2, min_lr=1e-5, verbose=1),
     ]
 
     history = model.fit(
-        [PT_train, LOC_train_s, CTX_train_s],
-        y_train_s,
+        [X_train, P_train, B_train, PT_train, LOC_train],
+        y_train,
         validation_split=0.2,
         epochs=50,
         batch_size=256,
@@ -77,8 +82,11 @@ if __name__ == "__main__":
 
     # Evaluate in real units
     print("\nEvaluating on test set...")
-    y_pred_s = model.predict([PT_test, LOC_test_s, CTX_test_s], batch_size=256, verbose=0)
-    evaluate(y_test_s, y_pred_s, target_scaler)
+    y_pred = model.predict(
+        [X_test, P_test, B_test, PT_test, LOC_test],
+        batch_size=256, verbose=0
+    )
+    evaluate(y_test, y_pred, target_scaler)
 
     # Save
     model.save(ART_PATH + "ev_model.keras")
