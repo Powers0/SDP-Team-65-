@@ -11,7 +11,7 @@ ARTIFACTS = "artifacts/"
 SHARED_DIR = "../../artifacts/shared/"
 
 
-YEARS = [2021, 2022, 2023, 2024]
+YEARS = [2021]#, 2022, 2023, 2024]
 
 SWING_DESCRIPTIONS = {
     "swinging_strike",

@@ -62,7 +62,7 @@ if __name__ == "__main__":
         pitch_type_dim=pitch_type_dim,
         loc_dim=loc_dim,
     )
-    model.compile(optimizer="adam", loss="mae", metrics=["mae"])
+    model.compile(optimizer="adam", loss="mse", metrics=["mse"])
     model.summary()
 
     callbacks = [

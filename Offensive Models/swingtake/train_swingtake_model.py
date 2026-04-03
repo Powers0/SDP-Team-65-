@@ -59,7 +59,7 @@ if __name__ == "__main__":
     num_batters=num_batters
 )
 
-    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001, clipnorm=1.0), loss="binary_crossentropy", metrics=["accuracy"])
+    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001, clipnorm=1.0), loss="mse", metrics=["mse"])
 
     model.summary()
 
