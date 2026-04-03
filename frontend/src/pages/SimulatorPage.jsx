@@ -283,6 +283,8 @@ export default function SimulatorPage() {
             "FF",
           swingProb: api.swing_prob ?? null,
           contactOutcome: api.contact_outcome ?? null,
+          exitVelocity: api.exit_velocity ?? null,
+          launchAngle: api.launch_angle ?? null,
           // We derive Ball/Strike from the predicted location + hitter zone.
           //
           result: null,
@@ -845,6 +847,22 @@ export default function SimulatorPage() {
                 {prettyPitchType(currentPitch?.pitchType)}
               </div>
             </div>
+            {currentPitch?.exitVelocity != null &&
+              currentPitch?.result === "Fair" && (
+                <div className="scoreboard-row">
+                  <div className="label">Exit Velo</div>
+                  <div className="value mono">
+                    {currentPitch.exitVelocity} mph
+                  </div>
+                </div>
+              )}
+            {currentPitch?.launchAngle != null &&
+              currentPitch?.result === "Fair" && (
+                <div className="scoreboard-row">
+                  <div className="label">Launch Angle</div>
+                  <div className="value mono">{currentPitch.launchAngle}°</div>
+                </div>
+              )}
           </div>
 
           {/* Real matchup history */}
