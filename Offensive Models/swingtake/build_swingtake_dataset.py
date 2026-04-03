@@ -10,7 +10,10 @@ CSV_DIR = "../../csv data"
 ARTIFACTS = "artifacts/"
 SHARED_DIR = "../../artifacts/shared/"
 
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes
 YEARS = [2021]#, 2022, 2023, 2024]
 
 SWING_DESCRIPTIONS = {
