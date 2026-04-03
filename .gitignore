@@ -6,4 +6,6 @@ statcast_full_2021.csv
 .DS_Store
 __pycache__/
 *.pyc
-*.npy
+*.npy*.npy
+*.pkl
+*.keras
