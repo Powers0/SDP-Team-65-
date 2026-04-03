@@ -102,6 +102,26 @@ def build_repertoire_map(df, min_usage: float = 0.02):
         rep[int(pid)] = types
     return rep
 
+def build_velocity_map(df):
+    """
+    Receive average velocity for pitchers
+    Takes their average velocity for each pitch from the most recent year
+    with a minimum pitch threshold of 100
+    """
+    vmap = {}
+    for pid, group in df.groupby("pitcher"):
+        most_recent_year = group["game_date"].max()[:4]
+        recent = group[group["game_date"].str.startswith(most_recent_year)]
+        group_to_use = recent if len(recent) >= 100 else group
+        vmap[int(pid)] = {}
+        for pt, pt_group in group_to_use.groupby("pitch_type"):
+            pt_norm = norm_pitch_type(str(pt))
+            avg_velo = pt_group["release_speed"].mean()
+            if not np.isnan(avg_velo):
+                vmap[int(pid)][pt_norm] = round(float(avg_velo), 1)
+    return vmap 
+    
+
 # Simple in-memory cache for matchup history (keyed by (pitcher_mlbam, batter_mlbam))
 _matchup_cache = {}
 
@@ -123,10 +143,13 @@ print("Loading serving table...")
 SERVING_DF = load_serving_table(SERVING_TABLE_PATH)
 
 REPERTOIRE_MAP = build_repertoire_map(SERVING_DF)
+VELOCITY_MAP = build_velocity_map(SERVING_DF)
 
 print("Built repertoire map for", len(REPERTOIRE_MAP), "pitchers")
 
 ART["repertoire_map"] = REPERTOIRE_MAP
+
+
 
 @app.get("/api/players")
 def api_players():
@@ -224,6 +247,11 @@ def api_predict():
     
     out = to_py(result)
     out["context_label"] = context_label
+    pt = result.get("pitch_type")
+    out["pitch_velocity"] = VELOCITY_MAP.get(pitcher_mlbam, {}).get(pt)
+    if out["pitch_velocity"] is not None:
+        noise = round(float(np.random.normal(0, 1.0)), 1)
+        out["pitch_velocity"] = int(round(out["pitch_velocity"] + noise, 1))
     return jsonify(out)
 
 @app.get("/api/matchup-history")
