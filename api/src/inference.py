@@ -513,6 +513,17 @@ def predict_next(
     )[0]
     contact_idx = int(np.argmax(ct_probs))
     contact_outcome = artifacts["contact_classes"][contact_idx]
+    exit_velocity = None
+    launch_angle = None
+    if contact_outcome == "fair":
+        evla_loc_scaled = artifacts["evla_loc_scaler"].transform(loc_raw)
+        evla_ctx_scaled = artifacts["evla_ctx_scaler"].transform(ctx_arr_raw)
+        ev_pred_scaled = artifacts["evla_model"].predict(
+            [ct_onehot, evla_loc_scaled, evla_ctx_scaled], verbose=0
+        )
+        ev_la_real = artifacts["evla_target_scaler"].inverse_transform(ev_pred_scaled)
+        exit_velocity = round(float(ev_la_real[0, 0]), 1)
+        launch_angle = round(float(ev_la_real[0, 1]), 1)
     contact_probs = {
         artifacts["contact_classes"][i]: float(ct_probs[i])
         for i in range(len(ct_probs))
@@ -534,5 +545,7 @@ def predict_next(
         "swing_prob": swing_prob,
         "contact_outcome": contact_outcome,
         "contact_probs": contact_probs,
+        "exit_velocity": exit_velocity,
+        "launch_angle": launch_angle,
 
     }

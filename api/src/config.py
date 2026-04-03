@@ -9,6 +9,7 @@ PT_DIR = os.path.join(ROOT, "Pitch Type Prediction", "artifacts") + os.sep
 LOC_DIR = os.path.join(ROOT, "Pitch Location Prediction", "artifacts") + os.sep
 ST_DIR = os.path.join(ROOT, "Offensive Models", "swingtake", "artifacts") + os.sep
 CT_DIR = os.path.join(ROOT, "Offensive Models", "contact_outcome", "artifacts") + os.sep
+EVLA_DIR = os.path.join(ROOT, "Offensive Models", "EV_and_LA", "artifacts") + os.sep
 SHARED_DIR = os.path.join(ROOT, "artifacts", "shared") + os.sep
 SERVING_TABLE_PATH = os.path.join(ROOT, "artifacts", "serving", "serving_table.parquet")
 

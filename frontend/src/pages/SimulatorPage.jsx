@@ -283,6 +283,9 @@ export default function SimulatorPage() {
             "FF",
           swingProb: api.swing_prob ?? null,
           contactOutcome: api.contact_outcome ?? null,
+          pitchVelocity: api.pitch_velocity ?? null,
+          exitVelocity: api.exit_velocity ?? null,
+          launchAngle: api.launch_angle ?? null,
           // We derive Ball/Strike from the predicted location + hitter zone.
           //
           result: null,
@@ -835,16 +838,35 @@ export default function SimulatorPage() {
             </div>
 
             <div className="scoreboard-row">
-              <div className="label">Pitch #</div>
-              <div className="value mono">{pitchNum}</div>
-            </div>
-
-            <div className="scoreboard-row">
               <div className="label">Pitch Type</div>
               <div className="value">
                 {prettyPitchType(currentPitch?.pitchType)}
               </div>
             </div>
+            {currentPitch?.pitchVelocity != null && (
+              <div className="scoreboard-row">
+                <div className="label">Velocity</div>
+                <div className="value mono">
+                  {currentPitch.pitchVelocity} mph
+                </div>
+              </div>
+            )}
+            {currentPitch?.exitVelocity != null &&
+              currentPitch?.result === "Fair" && (
+                <div className="scoreboard-row">
+                  <div className="label">Exit Velo</div>
+                  <div className="value mono">
+                    {currentPitch.exitVelocity} mph
+                  </div>
+                </div>
+              )}
+            {currentPitch?.launchAngle != null &&
+              currentPitch?.result === "Fair" && (
+                <div className="scoreboard-row">
+                  <div className="label">Launch Angle</div>
+                  <div className="value mono">{currentPitch.launchAngle}°</div>
+                </div>
+              )}
           </div>
 
           {/* Real matchup history */}

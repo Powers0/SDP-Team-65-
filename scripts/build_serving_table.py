@@ -34,7 +34,7 @@ needed_cols = [
     "on_1b","on_2b","on_3b",
     "bat_score","fld_score",
     "stand","p_throws",
-    "plate_x","plate_z",
+    "plate_x","plate_z", "release_speed",
 ]
 df = df[[c for c in needed_cols if c in df.columns]].copy()
 
